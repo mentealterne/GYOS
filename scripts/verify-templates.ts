@@ -267,7 +267,8 @@ try {
 interface Check {
   name: string;
   method: string;
-  path: string;
+  /** The path, or a function that gives it once the checks before it have run. */
+  path: string | (() => string);
   json?: unknown;
   tenant?: boolean;
   status: number;
@@ -292,6 +293,8 @@ function smokeChecks(): Check[] {
   const secondItems = `/${second}/${AREAS[second].path}`;
   const thirdItems = `/${third}/${AREAS[third].path}`;
   const name = "Blue widget";
+  /** The id of what "create in the renamed area" created. */
+  let renamedId = "";
   return [
     { name: "liveness", method: "GET", path: "/health", status: 200 },
     { name: "readiness", method: "GET", path: "/ready", status: 200 },
@@ -330,7 +333,39 @@ function smokeChecks(): Check[] {
       status: 200,
       expect: (body) => hasLength(body, AREAS[second].list, 0),
     },
-    { name: "create in the renamed area", method: "POST", path: secondItems, json: { name }, tenant: true, status: 201 },
+    {
+      name: "create in the renamed area",
+      method: "POST",
+      path: secondItems,
+      json: { name },
+      tenant: true,
+      status: 201,
+      expect: (body) => {
+        const id = (body as { id?: unknown } | undefined)?.id;
+        if (typeof id !== "string") return "no id in the body";
+        renamedId = id;
+        return undefined;
+      },
+    },
+    {
+      name: "rename in the renamed area",
+      method: "PATCH",
+      path: () => `${secondItems}/${renamedId}`,
+      json: { name: "Navy widget" },
+      tenant: true,
+      status: 200,
+      expect: (body) =>
+        (body as { name?: unknown } | undefined)?.name === "Navy widget" ? undefined : `name ${JSON.stringify(body)}`,
+    },
+    {
+      name: "not found in the renamed area",
+      method: "PATCH",
+      path: `${secondItems}/${randomUUID()}`,
+      json: { name },
+      tenant: true,
+      status: 404,
+      expect: (body) => (errorCode(body) === "not-found" ? undefined : `code ${String(errorCode(body))}`),
+    },
     { name: "create an order", method: "POST", path: thirdItems, json: { name }, tenant: true, status: 201 },
     {
       name: "list the renamed area",
@@ -438,7 +473,8 @@ async function runHost(
     port = await listening;
     const tenant = { "x-tenant-id": `tenant-${randomUUID()}` };
     for (const check of smokeChecks()) {
-      const response = await fetch(`http://127.0.0.1:${port}${check.path}`, {
+      const path = typeof check.path === "function" ? check.path() : check.path;
+      const response = await fetch(`http://127.0.0.1:${port}${path}`, {
         method: check.method,
         headers: { ...(check.json === undefined ? {} : { "content-type": "application/json" }), ...(check.tenant ? tenant : {}) },
         body: check.json === undefined ? undefined : JSON.stringify(check.json),
@@ -447,7 +483,7 @@ async function runHost(
       const body: unknown = text === "" ? undefined : JSON.parse(text);
       const problem =
         response.status !== check.status ? `status ${response.status}, expected ${check.status}` : check.expect?.(body);
-      console.log(`  ${problem === undefined ? "ok  " : "FAIL"} ${check.name}: ${check.method} ${check.path} → ${response.status}`);
+      console.log(`  ${problem === undefined ? "ok  " : "FAIL"} ${check.name}: ${check.method} ${path} → ${response.status}`);
       if (problem !== undefined) problems.push(`${check.name}: ${problem} (${text})`);
     }
   } catch (error) {
