@@ -9,19 +9,30 @@ describe("the integration tests' database", () => {
     );
   });
 
-  it.each(["postgres://localhost/app_test", "postgres://u:p@db:5432/gyos_verify_1?sslmode=disable", "postgres://localhost/TestDb"])(
-    "accepts %s",
-    (url) => {
-      expect(testDatabaseUrl({ TEST_DATABASE_URL: url })).toBe(url);
-    },
-  );
+  it.each([
+    "postgres://localhost/app_test",
+    "postgres://u:p@db:5432/gyos_verify_1?sslmode=disable",
+    "postgres://localhost/APP_TEST",
+    "postgres://localhost/test-orders",
+    "postgres://localhost/test",
+  ])("accepts %s", (url) => {
+    expect(testDatabaseUrl({ TEST_DATABASE_URL: url })).toBe(url);
+  });
 
-  it.each(["postgres://localhost/app", "postgres://localhost/postgres", "postgres://test-host/app", "postgres://localhost"])(
-    "refuses %s, whose name doesn't say it is a throwaway database",
-    (url) => {
-      expect(() => testDatabaseUrl({ TEST_DATABASE_URL: url })).toThrow(/only run on a database whose name contains/);
-    },
-  );
+  it.each([
+    "postgres://localhost/app",
+    "postgres://localhost/postgres",
+    "postgres://test-host/app",
+    "postgres://localhost",
+    "postgres://localhost/latest",
+    "postgres://localhost/contest",
+    "postgres://localhost/app_testing",
+    "postgres://localhost/verifyme",
+  ])("refuses %s, whose name doesn't say it is a throwaway database", (url) => {
+    expect(() => testDatabaseUrl({ TEST_DATABASE_URL: url })).toThrow(
+      /only run on a database whose name has "test" or "verify" as a word of its own/,
+    );
+  });
 
   it("refuses a value that is not a URL", () => {
     expect(() => testDatabaseUrl({ TEST_DATABASE_URL: "host=localhost dbname=app_test" })).toThrow(

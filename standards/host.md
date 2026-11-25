@@ -197,7 +197,8 @@ module's lines were edited by hand: a file that already imports the module (`"@m
   The modules' integration tests drop their schemas on `TEST_DATABASE_URL` at the same time, so
   sharing it would race. That needs the `CREATEDB` privilege, which the Postgres of
   `docker-compose.yml` and of CI have. They refuse a `TEST_DATABASE_URL` whose database name
-  doesn't contain `test` or `verify`.
+  doesn't have `test` or `verify` as a word of its own, by the modules' rule (module.md,
+  Testing); `scripts/verify-templates.ts` runs the refusal on a database called `latest`.
 
 ---
 

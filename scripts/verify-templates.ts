@@ -522,13 +522,14 @@ async function verify(): Promise<void> {
   if (!(await runHost("host from build", ["dist/main.js"], env, { shutdownDelayMs: 1_500 }))) return;
   if (!run("db:migrate", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:migrate"], { env })) return;
   // The integration tests wipe schemas, or whole databases: they read TEST_DATABASE_URL, not
-  // DATABASE_URL, and refuse a database whose name doesn't contain "test" or "verify".
+  // DATABASE_URL, and refuse a database without "test" or "verify" as a word of its name. "latest"
+  // holds the letters, not the word. They refuse it before connecting: it needn't exist.
   const notForTests = new URL(adminUrl);
-  notForTests.pathname = "/postgres";
+  notForTests.pathname = "/latest";
   for (const pkg of refusers) {
     const refused = runExpectingFailure(refusal(pkg), "pnpm", ["--filter", pkg, "run", "test:integration"], {
       env: { TEST_DATABASE_URL: notForTests.toString() },
-      output: /only run on a database whose name contains/,
+      output: /only run on a database whose name has "test" or "verify" as a word of its own/,
     });
     if (!refused) return;
   }

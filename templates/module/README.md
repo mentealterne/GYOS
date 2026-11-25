@@ -28,7 +28,7 @@ This module was scaffolded from a template, and it still holds the template's ex
 | `pnpm typecheck` | Typechecks the source, the tests, the scenarios and the tooling |
 | `pnpm test:unit` | Unit and architecture tests, no database |
 | `pnpm test:scenarios` | The `.feature` files, on the in-memory repositories |
-| `pnpm test:integration` | The adapters and migrations on Postgres: `TEST_DATABASE_URL`, a database named with `test` or `verify`, whose `sample` schema is dropped |
+| `pnpm test:integration` | The adapters and migrations on Postgres: `TEST_DATABASE_URL`, a database with `test` or `verify` as a word of its name (`product_test`), whose `sample` schema is dropped |
 | `pnpm build` | `src` to `dist`, with declarations |
 | `pnpm db:generate` | Writes a migration for a change to `src/db/schema.ts` |
 | `pnpm db:check` | Checks the migrations folder is consistent |

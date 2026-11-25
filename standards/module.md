@@ -678,9 +678,10 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
   schema and bookkeeping table, never anything else, so the modules of a workspace can run theirs
   at the same time on one database.
 - **They read `TEST_DATABASE_URL`, never `DATABASE_URL`,** and refuse to run unless the
-  database's name contains `test` or `verify`: a test run that drops a schema must not be one
-  mistyped variable away from real data. A unit test checks the refusal, and
-  `scripts/verify-templates.ts` runs it on a database called `postgres`.
+  database's name has `test` or `verify` as a word of its own, at an end or set off by `_` or `-`
+  (`product_test`, `test-orders`, `gyos_verify_1`; not `latest`, `contest` or `testing`): a test
+  run that drops a schema must not be one mistyped variable away from real data. A unit test
+  checks the refusal, and `scripts/verify-templates.ts` runs it on a database called `latest`.
 - **One set of in-memory adapters** in `features/support/` serves both the scenarios and the unit
   tests, so a phrase like "Giulia is an HR director" means the same thing everywhere. They keep
   the same promises as the real adapters, unique indexes and transactions included.
