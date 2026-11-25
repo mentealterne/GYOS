@@ -86,13 +86,37 @@ The standard's `migrate<Name>()` follows from these:
   Once the migrations are applied, a run only reads the bookkeeping table, so serialising costs
   nothing at boot. `hashtext()` would also work for a key, but it is an undocumented internal
   function.
-- **`lock_timeout` is set after the advisory lock is taken.** It applies to every lock wait, the
-  advisory lock included
+- **`lock_timeout` is set twice: long before the advisory lock, short after it.** It applies to
+  every lock wait, the advisory lock included
   ([Postgres: client config](https://www.postgresql.org/docs/current/runtime-config-client.html)).
+  Without a timeout, `pg_advisory_lock` waits forever, so a run stuck in another process would
+  hang every boot behind it. The template sets it to `migrationLockTimeoutMs` (60 s by default)
+  first, then to 5 s for the migration's own statements. **Verified** on Postgres 16: with the
+  lock held in another session and a 200 ms timeout, `ready()` failed after about 200 ms with
+  SQLSTATE `55P03` (`lock_not_available`).
 - **The connection is destroyed, not returned to the pool,** with `client.release(true)`
   ([node-postgres: pool](https://node-postgres.com/apis/pool)). That drops the session lock and
   the setting together.
 - **The folder is an absolute path** resolved from `import.meta.url`.
+
+### Migrations need a session: direct or session-mode connections only
+
+The migration run relies on session state: a session-level advisory lock, `set_config` and `SET`.
+A connection pooler in **transaction mode** gives the server connection back to the pool at the
+end of each transaction, so that state doesn't survive:
+
+- **PgBouncer** lists "Session-level advisory locks" and `SET`/`RESET` as "Never" compatible with
+  transaction pooling ([PgBouncer: features](https://www.pgbouncer.org/features.html)).
+- **Neon's pooled connection string** is PgBouncer in `pool_mode=transaction`; Neon lists
+  session-level advisory locks and `SET` as not supported on it, and recommends a direct
+  connection for schema migrations
+  ([Neon: connection pooling](https://neon.com/docs/connect/connection-pooling)).
+- **Supabase's transaction-mode pooler** (port 6543) loses session-level state between
+  transactions, advisory locks and `set` included; direct connections and session mode keep it
+  ([Supabase: connecting to Postgres](https://supabase.com/docs/guides/database/connecting-to-postgres)).
+
+So the pool a host passes to a module reaches Postgres directly or through a session-mode pooler.
+Checked on 2026-11-25; not run against any of these services.
 
 ### The out-of-order trap
 
@@ -205,9 +229,15 @@ CI (`scripts/verify-templates.ts` and throwaway experiments):
   `generate` and `check` work with it.
 - A module named `case-management` gets the schema `"case-management"`; every tier of tests passes
   on it, since Drizzle quotes identifiers.
+- `lock_timeout` bounds the wait in `pg_advisory_lock`: `ready()` fails with `55P03` after the
+  configured time while another session holds the lock.
+- A Drizzle transaction rolls back every write of a rejected `work`, and a nested one is a
+  savepoint (`NodePgTransaction` in drizzle-orm 0.45.4); the contract suite checks the in-memory
+  twin does the same.
 
 ## Not verified
 
 - Whether `pnpm deploy` honours `files`.
 - When Drizzle v1 becomes generally available.
 - Whether squawk suits GYOS.
+- Migrations through a session-mode pooler (PgBouncer, Supabase), or against Neon.

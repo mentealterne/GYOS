@@ -29,7 +29,9 @@ export function createSampleModule(input: SampleModuleConfig): SampleModule {
 
   let migrated: Promise<void> | undefined;
   const ready = (): Promise<void> => {
-    migrated ??= migrateSample(config.db, config.migrationsFolder).then(
+    migrated ??= migrateSample(config.db, config.migrationsFolder, {
+      lockTimeoutMs: config.migrationLockTimeoutMs,
+    }).then(
       () => logger.info("ready"),
       (error: unknown) => {
         migrated = undefined;

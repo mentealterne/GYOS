@@ -6,6 +6,9 @@ import type { Pool } from "pg";
 import { createFallbackLogger, type SampleLogger } from "../logger.ts";
 import { SAMPLE_MIGRATIONS_FOLDER } from "../migrations.ts";
 
+/** How long ready() waits for the migration lock while another run, of any module, holds it. */
+export const DEFAULT_MIGRATION_LOCK_TIMEOUT_MS = 60_000;
+
 export interface SampleModuleConfig {
   /** The host's pool. The module builds on it and never opens or ends one. */
   db: Pool;
@@ -15,6 +18,11 @@ export interface SampleModuleConfig {
   clock?: () => Date;
   /** Only for a host that bundles this module: where the shipped migrations folder is. */
   migrationsFolder?: string;
+  /**
+   * How long ready() waits for the migration lock, which every module of the workspace shares,
+   * before it fails. Defaults to 60 000 ms.
+   */
+  migrationLockTimeoutMs?: number;
 }
 
 export interface ResolvedSampleConfig {
@@ -22,6 +30,7 @@ export interface ResolvedSampleConfig {
   logger: SampleLogger;
   clock: () => Date;
   migrationsFolder: string;
+  migrationLockTimeoutMs: number;
 }
 
 export class SampleConfigError extends Error {
@@ -41,7 +50,7 @@ export function resolveSampleConfig(config: SampleModuleConfig): ResolvedSampleC
     throw new SampleConfigError(["config: expected an object"]);
   }
   const problems: string[] = [];
-  const { db, logger, clock, migrationsFolder } = config as Partial<SampleModuleConfig>;
+  const { db, logger, clock, migrationsFolder, migrationLockTimeoutMs } = config as Partial<SampleModuleConfig>;
 
   if (!hasMethods(db, ["connect", "query"])) {
     problems.push("db: expected a pg Pool");
@@ -57,6 +66,12 @@ export function resolveSampleConfig(config: SampleModuleConfig): ResolvedSampleC
       problems.push("migrationsFolder: expected an absolute path");
     }
   }
+  if (
+    migrationLockTimeoutMs !== undefined &&
+    !(Number.isInteger(migrationLockTimeoutMs) && migrationLockTimeoutMs > 0)
+  ) {
+    problems.push("migrationLockTimeoutMs: expected a positive whole number of milliseconds");
+  }
   if (problems.length > 0) throw new SampleConfigError(problems);
 
   return {
@@ -64,6 +79,7 @@ export function resolveSampleConfig(config: SampleModuleConfig): ResolvedSampleC
     logger: logger ?? createFallbackLogger(),
     clock: clock ?? (() => new Date()),
     migrationsFolder: migrationsFolder ?? SAMPLE_MIGRATIONS_FOLDER,
+    migrationLockTimeoutMs: migrationLockTimeoutMs ?? DEFAULT_MIGRATION_LOCK_TIMEOUT_MS,
   };
 }
 

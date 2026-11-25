@@ -269,6 +269,8 @@ export interface BillingModuleConfig {
   invoiceNotifier?: InvoiceNotifier;
   /** Only for a host that bundles this module: where the shipped migrations folder is. */
   migrationsFolder?: string;
+  /** How long ready() waits for the workspace's migration lock. Defaults to 60 000 ms. */
+  migrationLockTimeoutMs?: number;
 }
 
 export interface ResolvedBillingConfig {
@@ -277,6 +279,7 @@ export interface ResolvedBillingConfig {
   clock: () => Date;
   invoiceNotifier: InvoiceNotifier | null;
   migrationsFolder: string;
+  migrationLockTimeoutMs: number;
 }
 ```
 
@@ -393,21 +396,40 @@ export const MIGRATION_LOCK_KEY = 0x67796f736d6967n;
 export const MIGRATIONS_SCHEMA = "drizzle";
 export const MIGRATIONS_TABLE = "__migrations_billing";
 
-export async function migrateBilling(pool: Pool, migrationsFolder: string): Promise<void> {
+export async function migrateBilling(
+  pool: Pool,
+  migrationsFolder: string,
+  { lockTimeoutMs }: { lockTimeoutMs: number },
+): Promise<void> {
   const client = await pool.connect(); // one session for the lock and the migration
   try {
-    await client.query("select pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]);
-    await client.query("set lock_timeout = '5s'"); // after the advisory lock, so it can't time out
+    // A long wait for the lock, then a short one for each migration statement.
+    await client.query("select set_config('lock_timeout', $1, false)", [`${lockTimeoutMs}ms`]);
+    await client.query("select pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]); // 55P03: "Waited … ms"
+    await client.query("set lock_timeout = '5s'");
     await migrate(drizzle({ client }), {
       migrationsFolder,
       migrationsSchema: MIGRATIONS_SCHEMA,
       migrationsTable: MIGRATIONS_TABLE,
     });
   } finally {
-    client.release(true); // destroy the connection: frees the session lock and the setting
+    client.release(true); // destroy the connection: frees the session lock and the settings
   }
 }
 ```
+
+**The wait for the lock is bounded.** `lock_timeout` applies to advisory locks too, so it is set
+to `migrationLockTimeoutMs` (config, default 60 000 ms) before `pg_advisory_lock`: a run stuck
+elsewhere makes `ready()` fail with a message that says so, instead of hanging the boot. The
+timeout is then lowered to 5 s for the migration's own statements. An integration test holds the
+lock in another session and expects the failure within the timeout (verified, Postgres 16).
+
+**Migrations need a real session.** The advisory lock, `set_config` and `SET` belong to the
+session, so `ready()` and `db:migrate` need a direct connection or a pooler in session mode. A
+pooler in transaction mode (PgBouncer's `pool_mode=transaction`, the pooled connection strings of
+Neon and Supabase) can hand each transaction to a different server connection, and doesn't
+support session-level advisory locks. The pool a host passes as `db` therefore reaches Postgres
+directly or through a session-mode pooler; the sources are in `knowledge/data-and-migrations.md`.
 
 The `db:migrate` script, `scripts/migrate.ts` at the module's root, runs the same function by
 hand. It lives outside `src/` because it reads `DATABASE_URL`, and runs with Node's type

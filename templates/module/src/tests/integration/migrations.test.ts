@@ -2,6 +2,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import type pg from "pg";
 import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+import { MIGRATION_LOCK_KEY } from "../../db/migrate.ts";
 import { SAMPLE_SCHEMA } from "../../db/schema.ts";
 import { createSampleModule } from "../../index.ts";
 import type { SampleLogger } from "../../logger.ts";
@@ -54,6 +55,26 @@ describe("ready()", () => {
     const applied = await appliedMigrations();
     expect(applied).toHaveLength(journal.entries.length);
     expect(new Set(applied.map((row) => row.hash)).size).toBe(applied.length);
+  });
+
+  it("gives up waiting for the migration lock after migrationLockTimeoutMs, and says why", async () => {
+    // Another process holds the workspace's migration lock and doesn't let go.
+    const holder = await admin.connect();
+    try {
+      await holder.query("select pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]);
+      const module = createSampleModule({ db: admin, migrationLockTimeoutMs: 200 });
+      const started = performance.now();
+      const run = module.ready();
+      await expect(run).rejects.toThrow("Waited 200 ms for the migration lock");
+      await expect(run).rejects.toMatchObject({ cause: { code: "55P03" } });
+      expect(performance.now() - started).toBeLessThan(5_000);
+
+      await holder.query("select pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY]);
+      await module.ready();
+      expect(await appliedMigrations()).toHaveLength(journal.entries.length);
+    } finally {
+      holder.release(true);
+    }
   });
 
   it("is a no-op the second time", async () => {
