@@ -166,6 +166,13 @@ export default {
   comes for free. In TypeScript, type `this` explicitly.
   ([World](https://github.com/cucumber/cucumber-js/blob/main/docs/support_files/world.md),
   [hooks](https://github.com/cucumber/cucumber-js/blob/main/docs/support_files/hooks.md))
+- **Verified** on 2026-11-25: this recipe runs `@cucumber/cucumber` 13.3.0 with tsx 4.23 under
+  ESM, on Node 24.6 and 24.22, with `Rule:`, a custom parameter type and an `After` hook
+  (`templates/module`). A failing step fails the run.
+- **tsx doesn't add Node conditions.** Support code that imports another workspace module gets its
+  `dist/` unless Node runs with `--conditions=@gyos/source`; the module's script sets it with
+  `NODE_OPTIONS=--conditions=@gyos/source cucumber-js` (verified: without it, the import failed
+  before a build).
 
 **What GYOS does not rely on yet:**
 

@@ -45,8 +45,9 @@ it doesn't work:
   in the source of 0.45.4 and of 1.0.0-rc.6.
 - The first generated migration then runs a bare `CREATE SCHEMA "<module>"`. This was checked in
   drizzle-kit 0.31.11 and 1.0.0-rc.6.
-- If the two schemas are the same, the first migration fails with "schema already exists". This
-  is **inferred from the source, not run**.
+- If the two schemas are the same, the first migration fails with
+  `schema "<module>" already exists` (SQLSTATE 42P06). **Verified** on 2026-11-25 with
+  drizzle-orm 0.45.4 on Postgres 16.
 
 **GYOS's choice:** keep the bookkeeping in the shared `drizzle` schema, one table per module
 (`__migrations_<module>`). The alternative is hand-editing the first migration to
@@ -64,21 +65,58 @@ Three facts, all checked in the source:
 2. **There is no advisory lock,** in 0.45.4 or in 1.0.0-rc.6. Processes that boot together race.
    A real-world fix wraps the call in a session-level `pg_advisory_lock`
    ([simstudioai/sim#4939](https://github.com/simstudioai/sim/pull/4939)).
+   **Verified:** two pools migrating the same module at once, without a lock, failed in 29 of 30
+   trials, with unique violations on `pg_class` or `pg_type` as both created the bookkeeping
+   table.
 3. **`migrationsFolder` is read with plain `fs`,** so a relative path resolves against the current
    working directory, not against the module.
+4. **`CREATE SCHEMA IF NOT EXISTS` for the bookkeeping schema runs outside the transaction,** on
+   every run. `IF NOT EXISTS` is not concurrency-safe in Postgres: two sessions that create the
+   same schema at once fail with a unique violation on `pg_namespace`. **Verified:** 100 of 100
+   trials of two concurrent `CREATE SCHEMA IF NOT EXISTS "drizzle"` had one failure; two modules
+   with different lock keys booting at once on an empty database failed in 6 of 20 trials, and
+   with one shared key in none.
 
 The standard's `migrate<Name>()` follows from these:
 - **The lock and the migration share one connection.** A session-level advisory lock belongs to
   the session that took it ([Postgres: advisory locks](https://www.postgresql.org/docs/current/explicit-locking.html)).
-- **The lock key is a constant bigint per module.** `hashtext()` would also work, but it is an
-  undocumented internal function.
-- **`lock_timeout` is set after the advisory lock is taken.** It applies to every lock wait, the
-  advisory lock included
+- **The lock key is one constant bigint for the whole workspace**, not one per module (fact 4):
+  migrations of all modules run one at a time. The shared `drizzle` schema is not the only object
+  modules share in a database; two modules creating the same extension would collide the same way.
+  Once the migrations are applied, a run only reads the bookkeeping table, so serialising costs
+  nothing at boot. `hashtext()` would also work for a key, but it is an undocumented internal
+  function.
+- **`lock_timeout` is set twice: long before the advisory lock, short after it.** It applies to
+  every lock wait, the advisory lock included
   ([Postgres: client config](https://www.postgresql.org/docs/current/runtime-config-client.html)).
+  Without a timeout, `pg_advisory_lock` waits forever, so a run stuck in another process would
+  hang every boot behind it. The template sets it to `migrationLockTimeoutMs` (60 s by default)
+  first, then to 5 s for the migration's own statements. **Verified** on Postgres 16: with the
+  lock held in another session and a 200 ms timeout, `ready()` failed after about 200 ms with
+  SQLSTATE `55P03` (`lock_not_available`).
 - **The connection is destroyed, not returned to the pool,** with `client.release(true)`
   ([node-postgres: pool](https://node-postgres.com/apis/pool)). That drops the session lock and
   the setting together.
 - **The folder is an absolute path** resolved from `import.meta.url`.
+
+### Migrations need a session: direct or session-mode connections only
+
+The migration run relies on session state: a session-level advisory lock, `set_config` and `SET`.
+A connection pooler in **transaction mode** gives the server connection back to the pool at the
+end of each transaction, so that state doesn't survive:
+
+- **PgBouncer** lists "Session-level advisory locks" and `SET`/`RESET` as "Never" compatible with
+  transaction pooling ([PgBouncer: features](https://www.pgbouncer.org/features.html)).
+- **Neon's pooled connection string** is PgBouncer in `pool_mode=transaction`; Neon lists
+  session-level advisory locks and `SET` as not supported on it, and recommends a direct
+  connection for schema migrations
+  ([Neon: connection pooling](https://neon.com/docs/connect/connection-pooling)).
+- **Supabase's transaction-mode pooler** (port 6543) loses session-level state between
+  transactions, advisory locks and `set` included; direct connections and session mode keep it
+  ([Supabase: connecting to Postgres](https://supabase.com/docs/guides/database/connecting-to-postgres)).
+
+So the pool a host passes to a module reaches Postgres directly or through a session-mode pooler.
+Checked on 2026-11-25; not run against any of these services.
 
 ### The out-of-order trap
 
@@ -177,10 +215,30 @@ made the same call. Turning roles on is recorded as an ADR.
 
 ---
 
+## Verified
+
+On 2026-11-25, with drizzle-orm 0.45.4 and drizzle-kit 0.31.11, on Postgres 16 locally and 18 in
+CI (`scripts/verify-templates.ts` and throwaway experiments):
+
+- The "schema already exists" failure when the bookkeeping schema equals the module's schema.
+- The race without a lock, and the race on the shared `drizzle` schema between modules (facts 2
+  and 4 above). With the workspace-wide lock, two pools migrating one module at once apply each
+  migration once, and a host awaiting every module's `ready()` at once on an empty database
+  succeeds.
+- drizzle-kit 0.31 loads a TypeScript `drizzle.config.ts` in a `"type": "module"` package, and
+  `generate` and `check` work with it.
+- A module named `case-management` gets the schema `"case-management"`; every tier of tests passes
+  on it, since Drizzle quotes identifiers. `scripts/verify-templates.ts` scaffolds it on every
+  run, so this is re-checked in CI.
+- `lock_timeout` bounds the wait in `pg_advisory_lock`: `ready()` fails with `55P03` after the
+  configured time while another session holds the lock.
+- A Drizzle transaction rolls back every write of a rejected `work`, and a nested one is a
+  savepoint (`NodePgTransaction` in drizzle-orm 0.45.4); the contract suite checks the in-memory
+  twin does the same.
+
 ## Not verified
 
-- The "schema already exists" failure when the bookkeeping schema equals the module's schema
-  (inferred from source, not run).
 - Whether `pnpm deploy` honours `files`.
 - When Drizzle v1 becomes generally available.
 - Whether squawk suits GYOS.
+- Migrations through a session-mode pooler (PgBouncer, Supabase), or against Neon.

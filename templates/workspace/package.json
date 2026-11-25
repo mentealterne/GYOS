@@ -1,0 +1,21 @@
+{
+  "name": "product",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@10.27.0",
+  "engines": {
+    "node": ">=24"
+  },
+  "scripts": {
+    "build": "turbo run build",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test:unit test:scenarios",
+    "test:unit": "turbo run test:unit",
+    "test:scenarios": "turbo run test:scenarios",
+    "test:integration": "turbo run test:integration"
+  },
+  "devDependencies": {
+    "turbo": "catalog:"
+  }
+}

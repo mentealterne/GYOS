@@ -1,0 +1,29 @@
+packages:
+  - "modules/*"
+  - "apps/*"
+  - "tooling/*"
+
+# One version of each shared dependency for the whole workspace. Packages refer to it as
+# "catalog:", so an upgrade is one line here. Versions are exact, not ranges: the template ships
+# no lockfile (module names vary), so ranges would let two installs, or two CI runs, differ.
+# A generated product commits its own pnpm-lock.yaml, which also pins what these depend on.
+catalog:
+  "@cucumber/cucumber": 13.3.0
+  "@types/node": 24.19.4
+  "@types/pg": 8.23.1
+  # TypeScript 7 ships no programmatic API. As the TypeScript 7.0 announcement recommends,
+  # "typescript" is the TypeScript 6 API (for tools that import it) and "@typescript/native"
+  # is TypeScript 7, which provides the `tsc` binary.
+  "@typescript/native": npm:typescript@7.0.2
+  drizzle-kit: 0.31.11
+  drizzle-orm: 0.45.4
+  pg: 8.23.1
+  tsx: 4.23.15
+  turbo: 2.11.13
+  typescript: npm:@typescript/typescript6@6.0.2
+  vitest: 5.1.2
+  zod: 4.6.7
+
+# pnpm 10 runs no install scripts unless they are allowed here.
+onlyBuiltDependencies:
+  - esbuild

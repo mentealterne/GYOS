@@ -164,7 +164,7 @@ The layer rules are only real if something fails when they are broken.
 
 | Option | Version (2026-11) | Notes |
 | --- | --- | --- |
-| **Hand-written Vitest test** | — | Reads imports with `ts.preProcessFile(src, true, true).importedFiles`. No extra dependency, and each rule is a few lines that read like the standard. **GYOS's choice** |
+| **Hand-written Vitest test** | — | Reads imports with the compiler API: `ts.preProcessFile(src, true, true).importedFiles` for the specifiers, or the syntax tree (`ts.createSourceFile`) where a rule depends on whether an import is type-only, which `importedFiles` doesn't report. No extra dependency, and each rule is a few lines that read like the standard. **GYOS's choice** |
 | [dependency-cruiser](https://github.com/sverweij/dependency-cruiser/blob/main/doc/faq.md) | 18.9 | Path and regex rules, CI output, graphs. With only TypeScript 7.0 installed it behaves "as if there's no TypeScript compiler"; it works again from 7.1, or with TypeScript ≤ 6 next to it |
 | [eslint-plugin-boundaries](https://www.jsboundaries.dev/) | 7.4.5 | Editor feedback through `boundaries/elements` and `boundaries/dependencies`. Depends on typescript-eslint, which needs the TypeScript 6 API |
 | [Turborepo boundaries](https://turborepo.dev/docs/reference/boundaries) | experimental | Flags imports outside a package and undeclared dependencies, with tag-based rules. Good for rules between modules |
@@ -172,8 +172,12 @@ The layer rules are only real if something fails when they are broken.
 **[version] TypeScript 7.0** is the native Go port, released 2026-07-08. It ships **no
 programmatic API**; a new one is expected in 7.1
 ([Announcing TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)).
-Until then, GYOS's architecture tests use the TypeScript 6 API, installed under the npm alias
-`@typescript/typescript6` as the announcement documents.
+The announcement publishes `@typescript/typescript6`, which re-exports the 6.0 API and ships a
+`tsc6` binary, and recommends two npm aliases: `"typescript": "npm:@typescript/typescript6"` for
+tools that import `typescript`, and `"@typescript/native": "npm:typescript@^7"` so that `tsc` is
+TypeScript 7. GYOS's workspace template does exactly that, and its architecture tests
+`import ts from "typescript"` to get `ts.createSourceFile`, `ts.preProcessFile` and `ts.transpileModule`. Verified with
+`tsc` 7.0.2 and API 6.0.3 on 2026-11-25.
 
 **Recommended combination:**
 - the hand-written test for layer rules inside a module;
@@ -182,8 +186,18 @@ Until then, GYOS's architecture tests use the TypeScript 6 API, installed under 
 
 ---
 
+## Verified
+
+Run on 2026-11-25 by `scripts/verify-templates.ts` (Node 24.6 locally, 24.22 in CI):
+
+- **Node's type stripping works through pnpm's workspace symlinks.** A host run with
+  `node --conditions=@gyos/source src/main.ts` imported two modules: Node followed
+  `node_modules/@module/<name>` to the real path `modules/<name>/src/index.ts`, outside
+  `node_modules`, and stripped its types.
+
 ## Not verified
 
 - How eslint-plugin-boundaries resolves TypeScript imports: its documentation page didn't render.
-- Whether Node's type stripping works through pnpm's workspace symlinks. It should, since they
-  resolve to real paths. A `pnpm deploy` copy would not, which is why production uses `dist`.
+- Whether typescript-eslint works with the `typescript` → `@typescript/typescript6` alias.
+- A `pnpm deploy` copy puts the modules under `node_modules`, where Node refuses to strip types;
+  that is why production runs `dist`. Not tried.

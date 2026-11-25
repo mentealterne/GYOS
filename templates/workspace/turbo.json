@@ -1,0 +1,27 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "globalDependencies": ["tsconfig.base.json"],
+  "tasks": {
+    "transit": {
+      "dependsOn": ["^transit"]
+    },
+    "build": {
+      "dependsOn": ["^build"],
+      "outputs": ["dist/**"]
+    },
+    "typecheck": {
+      "dependsOn": ["transit"]
+    },
+    "test:unit": {
+      "dependsOn": ["transit"]
+    },
+    "test:scenarios": {
+      "dependsOn": ["transit"],
+      "outputs": ["reports/**"]
+    },
+    "test:integration": {
+      "cache": false,
+      "passThroughEnv": ["TEST_DATABASE_URL"]
+    }
+  }
+}
