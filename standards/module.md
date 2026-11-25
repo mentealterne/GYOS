@@ -7,9 +7,9 @@ then the templates. The reasons and sources behind it are in `knowledge/ports-an
 `knowledge/packaging-and-build.md`.
 
 The template that implements this standard is `templates/module`, and
-`scripts/verify-templates.ts` proves it: it scaffolds two modules into a throwaway workspace and
-runs every check below on them, in CI too. A statement here marked **verified** was run that way,
-not only read in documentation.
+`scripts/verify-templates.ts` proves it: it scaffolds two modules into a throwaway workspace, with
+the host of [`host.md`](host.md) that composes them, and runs every check below on them, in CI
+too. A statement here marked **verified** was run that way, not only read in documentation.
 
 The shape is taken from a production module that went through a long series of changes and
 schema migrations: an identity module consumed in-process by several apps. Its rules are
@@ -165,7 +165,8 @@ Swapping a technology then means adding a file next to the old one and changing 
 - it returns the controllers and `ready()`, which migrates the module's schema (M8).
 
 A host calls it **once per process** and keeps the result. The host's `main.ts` is the
-composition root: it builds the pool and the logger, builds every module, and wires the junctions.
+composition root: it builds the pool and the logger, then every module through `modules.ts`,
+where the junctions are wired ([`host.md`](host.md), H1 and H2).
 _Trap:_ building the module per request means building a new set of repositories on every call.
 
 **M2. The module owns no transport.**
@@ -309,9 +310,11 @@ through the config.
 - **Invalid input** is the `ZodError` thrown by the controller's parse. The root entry exports
   `is<Name>InputError(error)` (`module-controllers/input-error.ts`), an `instanceof` check against
   the module's own zod, so a host maps invalid input without importing zod or knowing the module
-  uses it. The smoke host in `scripts/verify-templates.ts` calls it from source and from the build.
+  uses it. The host's route files hand it to the error mapping, and `scripts/verify-templates.ts`
+  sends the running host invalid input, from source and from the build (verified).
 - **The host maps them** to HTTP statuses, job outcomes or CLI exit codes. The module never
-  produces an HTTP error.
+  produces an HTTP error. Over HTTP, invalid input is a 400 and each refusal code a 404, 409 or
+  422, by a map that must name every code ([`host.md`](host.md), H7).
 - **Anything else is a bug** and is thrown as a plain error.
 - **A port reports an expected outcome as a value**, not an exception: an adapter returns
   `"name-taken"` when the unique index behind that rule refuses a write, and the service turns it
@@ -512,8 +515,8 @@ meeting" belongs to neither assessments nor calendar. For each junction:
 
 1. it is **named**;
 2. it is **declared to belong to neither module**;
-3. its owner is **settled once**: by default, the host's composition root, where one module's
-   port is implemented with a call to the other;
+3. its owner is **settled once**: by default, the host's composition root
+   (`apps/api/src/modules.ts`), where one module's port is implemented with a call to the other;
 4. it is **documented once**, in the Junctions section of `docs/context-map.md`.
 
 ---
@@ -650,7 +653,8 @@ objects with union types, and factory functions rather than classes. This keeps 
 runnable by Node's type stripping, and stable since Node 24.12. The dev loop runs
 `node --conditions=@gyos/source apps/api/src/main.ts` with no build step: Node follows pnpm's
 workspace symlink to the module's real path, outside `node_modules`, and strips its types
-(verified on Node 24.6 with a host importing two modules).
+(verified on Node 24.6: `scripts/verify-templates.ts` runs the host template this way, with two
+modules, and sends it HTTP requests).
 
 **[version] Node 24 LTS** is the baseline. Cucumber 13 needs Node 22, 24 or ≥ 26, and the
 OpenTelemetry JS SDK 3 needs ≥ 22.15.
@@ -708,10 +712,11 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
 | --- | --- |
 | A rule (who may act, what is allowed) | `<area>/domain/`, with a unit test or a scenario |
 | A use case | `<area>/services/`, then an operation on its controller |
+| An HTTP endpoint for an operation | The module's route file in the host, `apps/api/src/http/routes/<name>.ts`: one route, one operation ([`host.md`](host.md), H6) |
 | A query or a table | A method on the port in `ports.ts`, then the adapter, its in-memory twin and the promise in the contract suite; the table in `db/schema.ts` and a generated migration |
 | Writes that must land together | A use case that receives `transaction` from the repositories and writes only through the repositories it is given |
 | An outside system (email, payments, a queue) | A port in `ports.ts`, its adapter in `adapters/`, wired in `index.ts` |
 | Something the host must provide | A port in `ports.ts`, an optional field in the config, a `<Port>MissingError` |
 | A type consumers need | Its area, then re-exported from `contracts.ts` |
-| An error consumers catch | Its area, exported as a class from `index.ts` and as a type from `contracts.ts` |
+| An error consumers catch | Its area, exported as a class from `index.ts` and as a type from `contracts.ts`; each new code mapped to a status in the host's route file |
 | A list another module needs to search or page | A column on a published view, or a new view with a recorded decision |
