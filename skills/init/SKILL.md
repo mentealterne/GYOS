@@ -142,7 +142,7 @@ architecture tests.
    - `pnpm test:integration`, with `TEST_DATABASE_URL`;
    - the API from source, with the slice exercised over HTTP;
    - the page;
-   - `node scripts/gyos-doctor.ts`, if it exists.
+   - `node scripts/gyos-doctor.ts`.
 4. **Close the knowledge.**
    - In that skill's `architecture.md`, the trace is now real: remove its `Unverified:` line once
      every path in it exists.

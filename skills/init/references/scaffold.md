@@ -14,10 +14,13 @@ context added later.
      next to it, or to it.
    - Merge `.gitignore` line by line.
    - In the root `package.json`, set `name` to the product's kebab-case name.
-2. **Copy the standards:** `node $P/scripts/copy-standards.ts .` writes `docs/standards/module.md`
-   and `docs/standards/domain-skill.md`.
-3. **Copy the workspace checks:** `$P/templates/tooling-architecture/` → `tooling/architecture/`.
-4. **Copy the host:** `$P/templates/apps/api/` → `apps/api/`. Adapt `src/logger.ts` to
+2. **Copy the standards:** `node $P/scripts/copy-standards.ts .` writes `docs/standards/module.md`,
+   `docs/standards/host.md` and `docs/standards/domain-skill.md`.
+3. **The environment:** copy `.env.example` to `.env`. Its values match `docker-compose.yml`: the
+   development database, and a test database whose name contains "test", which is the only kind
+   the integration tests agree to wipe. `.env` stays out of git.
+4. **Copy the workspace checks:** `$P/templates/tooling-architecture/` → `tooling/architecture/`.
+5. **Copy the host:** `$P/templates/apps/api/` → `apps/api/`. Adapt `src/logger.ts` to
    `docs/decisions/0003-logger.md`:
    - **none:** the host logs to the console, and no logger is injected into the modules;
    - **pino:** as the template;
@@ -70,7 +73,8 @@ For each context in the map that gets a module, in the map's order:
      `apps/api/src/modules.ts` once both sides exist, or record it in `todo.md` until then.
 2. **`AGENTS.md`** from `$P/templates/docs/AGENTS.md`, with one row per context. A root
    `CLAUDE.md` containing the single line `@AGENTS.md`.
-3. **The doctor.** If `$P/scripts/gyos-doctor.ts` exists, copy it to `scripts/gyos-doctor.ts`.
+3. **The doctor.** Copy `$P/scripts/gyos-doctor.ts` to `scripts/gyos-doctor.ts`. The product's CI
+   runs it.
 4. **The frontend,** per [frontends.md](frontends.md), into `apps/web/`.
 
 ## Install and first checks
@@ -80,6 +84,13 @@ pnpm install
 docker compose up -d     # Postgres; if Docker isn't available, say so and give the user the command
 pnpm typecheck
 pnpm test:unit
+node scripts/gyos-doctor.ts
 ```
+
+The doctor is expected to report, at this point:
+- the `Unverified:` traces, as notes;
+- nothing else.
+
+A failure means a skill was filled wrongly: fix it before the checkpoint.
 
 If a check fails, fix the cause; never weaken the check. Report what each command printed.

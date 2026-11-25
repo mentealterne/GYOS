@@ -5,9 +5,9 @@
 GYOS is a set of Claude Code skills that takes you from a product idea to a
 well-architected codebase, without the slop.
 
-> **Status: early.** The first skill, `/gyos:discover`, is in. The others
-> (`init`, `context`, `feature`, `decide`, `doctor`) are being written; see
-> [the plan](docs/plan.md).
+> **Status: early.** All six skills are in: `/gyos:init`, `/gyos:discover`,
+> `/gyos:context`, `/gyos:feature`, `/gyos:decide` and `/gyos:doctor`. They have
+> not yet been run end to end on a real product; see [the plan](docs/plan.md).
 
 ## Install
 
@@ -18,8 +18,8 @@ In Claude Code 2.1.275 or later:
 ```
 
 Or in two steps: `/plugin marketplace add mentealterne/GYOS`, then
-`/plugin install gyos@gyos`. Then describe your product idea and run
-`/gyos:discover`.
+`/plugin install gyos@gyos`. Then, in an empty git repository, run
+`/gyos:init` with your product idea.
 
 ## Why
 
