@@ -45,6 +45,7 @@ what it means, and how to fix it.
 | A file is over its ceiling | It needs pruning: a judgement, not a mechanical edit |
 | A trace names a missing file | The code moved and the trace is stale; it fails unless the trace is marked `Unverified:` |
 | Notes: `Unverified:`, token counts | Claims nobody has checked yet; the measured size of each load set |
+| A warning: the tenant comes from the `x-tenant-id` header | The host's development placeholder (`apps/api/src/http/tenant.ts`) is still there. It is not authentication, and a production host refuses to start with it. Ask how the product authenticates its callers; never make the warning go away by renaming the header |
 
 ## 3. What the script can't check
 
