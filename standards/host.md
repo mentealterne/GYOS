@@ -122,7 +122,8 @@ logs `stopped` and exits with 0 after `SIGTERM`.
 the host: the dependency in `package.json`, a line above each marker in `modules.ts`
 (`// gyos:modules:imports`, `:type`, `:build`, `:return`) and in `routes/index.ts`
 (`// gyos:routes:imports`, `:mount`), and `routes/<name>.ts` with its test, rendered from
-`templates/host-module`. The markers stay in the files. The script refuses to touch a host whose
+`templates/host-module`, named like the module and its first area (`--area`, `--entity`: the
+routes are at `/<name>/<area>`). The markers stay in the files. The script refuses to touch a host whose
 markers are missing or doubled, and a second run changes nothing (verified).
 
 ---
