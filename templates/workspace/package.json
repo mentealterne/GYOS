@@ -14,7 +14,8 @@
     "test": "turbo run test:unit test:scenarios",
     "test:unit": "turbo run test:unit",
     "test:scenarios": "turbo run test:scenarios",
-    "test:integration": "turbo run test:integration"
+    "test:integration": "turbo run test:integration",
+    "db:check": "pnpm --recursive --if-present run db:check"
   },
   "devDependencies": {
     "turbo": "catalog:"

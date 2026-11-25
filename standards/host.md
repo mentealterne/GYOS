@@ -217,7 +217,10 @@ module's lines were edited by hand: a file that already imports the module (`"@m
 - `.env.example`: `DATABASE_URL`, `TEST_DATABASE_URL`, `PORT`, `LOG_LEVEL`, `NODE_ENV`, and
   `TENANT_FROM_HEADER` commented out, with what it is. `pnpm dev`
   reads `.env`; other commands read the shell's environment.
-- `.github/workflows/ci.yml`: install, typecheck, build, the unit tests, the scenarios, the
+- `.github/workflows/ci.yml`: install, typecheck, build, the migrations' consistency
+  (`pnpm db:check`, every module's `drizzle-kit check`), the unit tests, the scenarios, the
   integration tests on a Postgres service, then `node scripts/gyos-doctor.ts` when that file
-  exists. Node 24. **Not verified** by a run: GYOS's own CI checks the templates, not this
-  workflow.
+  exists. Node 24. It installs with `--frozen-lockfile`, so the product must commit its
+  `pnpm-lock.yaml`: the templates ship none, because the module names vary, and the workflow says
+  so. **Not verified** by a run: GYOS's own CI checks the templates, not this workflow;
+  `scripts/verify-templates.ts` runs the same `pnpm db:check`.

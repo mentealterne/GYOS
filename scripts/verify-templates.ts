@@ -492,7 +492,8 @@ async function verify(): Promise<void> {
     output: /x-tenant-id header[\s\S]*not authentication/,
   });
   if (!placeholderRefused) return;
-  if (!run("db:check", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:check"])) return;
+  // The workspace's own script, the one its CI runs.
+  if (!run("db:check", "pnpm", ["run", "db:check"])) return;
   if (!checkMigrationsMatchSchema()) return;
 
   const refusers = ["@module/billing", "api"];
