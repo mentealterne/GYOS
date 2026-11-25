@@ -8,6 +8,8 @@
 //   Sample → its PascalCase form: types and functions;
 //   SAMPLE → its UPPER_SNAKE form: constants.
 // The migration lock key is left as it is: it is the same in every module of a workspace.
+// It renames only the module: the example area, items, and its first migration come along, and
+// the output says what to replace before the first deploy.
 // No dependencies. Runs with Node's type stripping (Node 24), so erasable syntax only.
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
@@ -104,7 +106,19 @@ if (args.length !== 2 || workspaceDir === undefined || name === undefined) {
       `Created @module/${names.kebab} in modules/${names.kebab} (${created.length} files): ` +
         `schema "${names.kebab}", create${names.pascal}Module().`,
     );
-    console.log("Next: pnpm install, then pnpm typecheck and pnpm test.");
+    console.log(
+      [
+        "",
+        "Next:",
+        "  1. pnpm install, then pnpm typecheck and pnpm test.",
+        "  2. The items area is an example: src/items/, src/items-vocabulary.ts (the \"./items\" export),",
+        "     features/items.feature and their tests. Replace it with this module's own area.",
+        `  3. Before the first deploy, delete modules/${names.kebab}/drizzle/ and run`,
+        `     pnpm --filter @module/${names.kebab} db:generate: the shipped 0000_init migration creates`,
+        `     "${names.kebab}".items, and once deployed, migrations are expand-only.`,
+        `See modules/${names.kebab}/README.md.`,
+      ].join("\n"),
+    );
   } catch (error) {
     console.error(error instanceof Error ? error.message : String(error));
     process.exitCode = 1;

@@ -82,7 +82,11 @@ by the scenarios and unit tests (with the in-memory ones), so the two cannot dri
 
 **Areas.** A module has one or more areas: the parts of the bounded context that change for
 different reasons, for example `authentication`, `account` and `company` inside an identity
-module. A new module starts with one area, named after its main concept. This standard says
+module. A new module starts with one area, named after its main concept. `scripts/new-module.ts`
+renames only the module: its `items` area and the `0000_init` migration that creates the `items`
+table are an example, replaced before the first deploy (delete `drizzle/`, then `db:generate`),
+because after it migrations are expand-only. The scaffolder's output and the module's
+`README.md` say so. This standard says
 "area", not "subdomain", because GYOS's knowledge base uses "subdomain" in the strategic DDD
 sense (core, supporting, generic).
 
