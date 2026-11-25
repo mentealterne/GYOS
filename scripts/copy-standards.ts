@@ -15,7 +15,7 @@ import { existsSync, mkdirSync, readFileSync, statSync, writeFileSync } from "no
 import { join, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const STANDARDS = ["module.md", "domain-skill.md"];
+const STANDARDS = ["module.md", "host.md", "domain-skill.md"];
 const HEADER = /^<!-- Copied from GYOS [^\n]*-->\n\n/;
 const START = "<!-- gyos-only:start -->";
 const END = "<!-- gyos-only:end -->";
@@ -24,7 +24,7 @@ const END = "<!-- gyos-only:end -->";
 const PLUGIN_ONLY = [
   /\bknowledge\/[\w-]+\.md/,
   /\btemplates\/(?:module|workspace|skill|docs|apps|tooling-architecture)\b/,
-  /\bscripts\/(?:verify-templates|new-module|copy-standards)\.ts/,
+  /\bscripts\/(?:verify-templates|new-module|copy-standards|template-names)(?:\.test)?\.ts/,
   /\bdocs\/plan\.md/,
   /gyos-only:/,
 ];

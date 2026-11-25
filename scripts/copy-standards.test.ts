@@ -29,11 +29,17 @@ describe("pluginOnlyLeftovers", () => {
   });
 });
 
-describe("the real domain skill standard", () => {
-  it("strips cleanly and leaves no plugin-only reference", () => {
+describe("the real standards", () => {
+  for (const name of ["module.md", "host.md", "domain-skill.md"]) {
+    it(`${name} strips cleanly and leaves no plugin-only reference`, () => {
+      const text = readFileSync(join(import.meta.dirname, "..", "standards", name), "utf8");
+      assert.deepEqual(pluginOnlyLeftovers(stripGyosOnly(text, name)), []);
+    });
+  }
+
+  it("keeps the product-facing rules of the domain skill standard and drops GYOS's own", () => {
     const text = readFileSync(join(import.meta.dirname, "..", "standards", "domain-skill.md"), "utf8");
     const stripped = stripGyosOnly(text, "domain-skill.md");
-    assert.deepEqual(pluginOnlyLeftovers(stripped), []);
     assert.match(stripped, /## Never invent, and mark what isn't checked/);
     assert.doesNotMatch(stripped, /How GYOS fills a new skill/);
   });
@@ -46,25 +52,28 @@ describe("copyStandards", () => {
   });
   afterEach(() => rmSync(repo, { recursive: true, force: true }));
 
-  // module.md gets its gyos-only markers in a later change; until then copyStandards refuses it,
-  // which is the leak check doing its job. These cases run once both standards are marked.
-  it("refuses to copy a standard that still mentions plugin-only files", async () => {
+  it("writes the three standards, each with its header", async () => {
     const { copyStandards } = await import("./copy-standards.ts");
-    const module = readFileSync(join(import.meta.dirname, "..", "standards", "module.md"), "utf8");
-    if (pluginOnlyLeftovers(stripGyosOnly(module, "module.md")).length === 0) return;
-    assert.throws(() => copyStandards(repo, "0.0.0", "2026-01-01"), /mark them gyos-only/);
+    const { written } = copyStandards(repo, "0.0.0", "2026-01-01");
+    assert.equal(written.length, 3);
+    for (const name of ["module.md", "host.md", "domain-skill.md"]) {
+      assert.match(readFileSync(join(repo, "docs", "standards", name), "utf8"), /^<!-- Copied from GYOS 0\.0\.0 /);
+    }
+  });
+
+  it("leaves an unchanged copy alone, date included", async () => {
+    const { copyStandards } = await import("./copy-standards.ts");
+    copyStandards(repo, "0.0.0", "2026-01-01");
+    const { written } = copyStandards(repo, "0.0.0", "2026-02-02");
+    assert.deepEqual(written, []);
   });
 
   it("never overwrites a file GYOS didn't write", async () => {
     const { copyStandards } = await import("./copy-standards.ts");
     mkdirSync(join(repo, "docs", "standards"), { recursive: true });
     writeFileSync(join(repo, "docs", "standards", "domain-skill.md"), "the team's own\n");
-    try {
-      const { refused } = copyStandards(repo, "0.0.0", "2026-01-01");
-      assert.ok(refused.some((file) => file.endsWith("domain-skill.md")));
-    } catch (error) {
-      assert.match((error as Error).message, /mark them gyos-only/);
-    }
+    const { refused } = copyStandards(repo, "0.0.0", "2026-01-01");
+    assert.ok(refused.some((file) => file.endsWith("domain-skill.md")));
     assert.equal(readFileSync(join(repo, "docs", "standards", "domain-skill.md"), "utf8"), "the team's own\n");
   });
 });

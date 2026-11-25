@@ -2,10 +2,15 @@
 
 The rules the host app keeps: `apps/api`, the one deployable of a GYOS product, which composes the
 modules and owns HTTP. The modules follow [`module.md`](module.md); this file covers what sits
-around them. The template that implements it is `templates/apps/api`, and
-`scripts/verify-templates.ts` proves it: it scaffolds the host with two modules, runs its tests,
-starts it from source and from the build (with `NODE_ENV=test`: a production host refuses the
-tenant placeholder, H6), sends it HTTP requests and stops it with `SIGTERM`, in CI too. A statement here marked **verified** was run that way.
+around them. A statement marked **verified** was run by GYOS's template verification: it scaffolds
+the host with two modules, runs its tests, starts it from source and from the build (with
+`NODE_ENV=test`: a production host refuses the tenant placeholder, H6), sends it HTTP requests and
+stops it with `SIGTERM`.
+
+<!-- gyos-only:start -->
+The template that implements this standard is `templates/apps/api`, and
+`scripts/verify-templates.ts` runs the verification, in CI too.
+<!-- gyos-only:end -->
 
 Versions were checked on 2026-11-25: Express 5.3, pino 10.4, Zod 4.6.
 
@@ -173,19 +178,19 @@ of the wiring, not by a run.
 
 ## Adding a module
 
-`node scripts/new-module.ts <workspace> <name> --host apps/api` scaffolds the module and adds it to
+GYOS's scaffolder, `new-module.ts <workspace> <name> --host apps/api`, scaffolds the module and adds it to
 the host: the dependency in `package.json`, a line above each marker in `modules.ts`
 (`// gyos:modules:imports`, `:type`, `:build`, `:return`) and in `routes/index.ts`
 (`// gyos:routes:imports`, `:mount`), and `routes/<name>.ts` with its test, rendered from
-`templates/host-module`, named like the module and its first area (`--area`, `--entity`: the
+GYOS's route template, named like the module and its first area (`--area`, `--entity`: the
 routes are at `/<name>/<area>`). For a module that exists already, the area and the entity must be
 its own: the script refuses one its `package.json` doesn't export, or whose vocabulary has no
-`create<Entity>InputSchema`, before it writes anything (verified by `scripts/new-module.test.ts`).
+`create<Entity>InputSchema`, before it writes anything (verified by the scaffolder's tests).
 The markers stay in the files. The script refuses to touch a host
 whose markers are missing or doubled, and a second run changes nothing (verified), even after the
 module's lines were edited by hand: a file that already imports the module (`"@module/<name>"` in
 `modules.ts`, `./<name>.ts` in `routes/index.ts`) gets none of its lines again (verified by
-`scripts/new-module.test.ts`).
+the scaffolder's tests).
 
 ---
 
@@ -205,7 +210,7 @@ module's lines were edited by hand: a file that already imports the module (`"@m
   sharing it would race. That needs the `CREATEDB` privilege, which the Postgres of
   `docker-compose.yml` and of CI have. They refuse a `TEST_DATABASE_URL` whose database name
   doesn't have `test` or `verify` as a word of its own, by the modules' rule (module.md,
-  Testing); `scripts/verify-templates.ts` runs the refusal on a database called `latest`.
+  Testing); GYOS's template verification runs the refusal on a database called `latest`.
 
 ---
 
@@ -227,4 +232,4 @@ module's lines were edited by hand: a file that already imports the module (`"@m
   exists. Node 24. It installs with `--frozen-lockfile`, so the product must commit its
   `pnpm-lock.yaml`: the templates ship none, because the module names vary, and the workflow says
   so. **Not verified** by a run: GYOS's own CI checks the templates, not this workflow;
-  `scripts/verify-templates.ts` runs the same `pnpm db:check`.
+  GYOS's template verification runs the same `pnpm db:check`.
