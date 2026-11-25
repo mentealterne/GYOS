@@ -282,6 +282,8 @@ function smokeChecks(): Check[] {
       json: { name },
       tenant: true,
       status: 404,
+      // The module's refusal, mapped by the route file: not the 404 of a route that doesn't exist.
+      expect: (body) => (errorCode(body) === "not-found" ? undefined : `code ${String(errorCode(body))}`),
     },
     {
       name: "malformed percent-encoding",
@@ -292,7 +294,13 @@ function smokeChecks(): Check[] {
       status: 400,
       expect: (body) => (errorCode(body) === "bad-request" ? undefined : `code ${String(errorCode(body))}`),
     },
-    { name: "no such route", method: "GET", path: "/nowhere", status: 404 },
+    {
+      name: "no such route",
+      method: "GET",
+      path: "/nowhere",
+      status: 404,
+      expect: (body) => (errorCode(body) === "route-not-found" ? undefined : `code ${String(errorCode(body))}`),
+    },
   ];
 }
 
