@@ -8,6 +8,7 @@
     "node": ">=24"
   },
   "scripts": {
+    "dev": "pnpm --filter api dev",
     "build": "turbo run build",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test:unit test:scenarios",
