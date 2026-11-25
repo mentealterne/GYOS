@@ -85,7 +85,12 @@ already exist, not from a separate state file.
 A Socratic interview, starting from the product idea.
 
 - **One question at a time**, each with a proposed answer the user can accept, correct or
-  reject. "I don't know" is a valid answer and becomes an open question.
+  reject. Every proposal is labelled *strong*, *inferred* or *speculative*. "I don't know" is a
+  valid answer and becomes an open question; nothing is filled in by guessing.
+- **Land, then explore.** GYOS asks for concrete past stories ("walk me through the last time…"),
+  reaches a plausible draft of the contexts quickly and shows it, then refines it. It does not
+  try to collect every detail up front. See
+  [`knowledge/domain-discovery.md`](../knowledge/domain-discovery.md).
 - **What it asks about:**
   - who uses the product and what they call things;
   - what happens (events), and what triggers it (commands, policies);
@@ -123,22 +128,26 @@ A few questions, only where the answer really varies between projects.
   - **Pragmatic.** Tests are required, in any order.
 
   Architecture tests, typecheck and lint run in every style.
-- **Logger:** whether the user wants one, and which: none (the console fallback), pino,
-  OpenTelemetry logs, or their own. Every module declares a small logger port and has a default.
-  The host injects the chosen logger through the module's config.
+- **Logger:** whether the user wants one, and which: none, pino, pino with OpenTelemetry, or
+  their own. Follow-up questions: where logs go, trace correlation, readable output in
+  development, per-module levels, fields to redact. Every module declares a small logger port; the
+  host injects the chosen logger through the module's config. Without one, a module writes only
+  warnings and errors to stderr.
 - **Everything else has a default.** The defaults are recorded in an ADR so the user can see and
   change them:
 
   | | Default |
   | --- | --- |
+  | Runtime | Node 24 LTS |
   | Workspace | pnpm workspaces + Turborepo |
-  | Language | TypeScript strict, ESM |
+  | Language | TypeScript strict, ESM, erasable syntax only |
   | Host app | Node + Express (replaceable) |
   | Database | Postgres, one schema per module, docker compose locally |
-  | ORM | Drizzle, one `pgSchema` per module, migrations per module |
+  | ORM | Drizzle (0.45 / drizzle-kit 0.31 until v1 is `latest`), one `pgSchema` per module |
   | Validation | Zod at every boundary |
-  | Module build | `build.ts` with esbuild: ESM, `exports` → `dist`, a `development` condition → `src` |
-  | Boundaries | Architecture tests in Vitest (layers, module dependencies) |
+  | Module build | `tsc`: ESM and declarations in `dist`, an `@gyos/source` condition → `src` for development |
+  | Scenarios | `@cucumber/cucumber` 13 with tsx |
+  | Boundaries | Architecture tests in Vitest (layers, module dependencies, migration order) |
   | Quality | ESLint + Prettier, pre-commit hook, GitHub Actions |
 
 ### 3. Scaffold
@@ -244,7 +253,7 @@ Append-only. A decision that replaces another says which.
 | 2026-11-25 | Modular monolith only: one deployable, one Postgres schema per module. No microservices option |
 | 2026-11-25 | Modules follow ports and adapters, with dependencies injected through a factory (see `standards/module.md`) |
 | 2026-11-25 | Fixed defaults, all replaceable. Drizzle is the ORM, Express the host app |
-| 2026-11-25 | Modules are ESM packages that ship a build (`build.ts`, esbuild) |
+| 2026-11-25 | Modules are ESM packages that ship a build made with `tsc`, as Turborepo recommends for internal packages; the dev loop reads `src` through the `@gyos/source` condition |
 | 2026-11-25 | The logger is a choice made at setup. Modules declare a logger port, and the host injects the logger |
 | 2026-11-25 | The interview runs in the user's language. Docs are written in English. The glossary keeps the original business term next to the name used in code |
 | 2026-11-25 | `adopt` (existing codebases) comes after the MVP; the standards are written so it fits later |
