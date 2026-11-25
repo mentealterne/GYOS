@@ -183,6 +183,8 @@ my-product/
   modules/
     billing/                @module/billing: one bounded context, one Postgres schema
     scheduling/
+  tooling/
+    architecture/           tests that span modules: dependencies, published views, migration order
   .claude/skills/
     billing/                the domain skill for modules/billing
     scheduling/
@@ -253,7 +255,8 @@ Append-only. A decision that replaces another says which.
 | 2026-11-25 | Modular monolith only: one deployable, one Postgres schema per module. No microservices option |
 | 2026-11-25 | Modules follow ports and adapters, with dependencies injected through a factory (see `standards/module.md`) |
 | 2026-11-25 | Fixed defaults, all replaceable. Drizzle is the ORM, Express the host app |
-| 2026-11-25 | Modules are ESM packages that ship a build made with `tsc`, as Turborepo recommends for internal packages; the dev loop reads `src` through the `@gyos/source` condition |
+| 2026-11-25 | Modules are ESM packages that ship a build (`build.ts`, esbuild) |
 | 2026-11-25 | The logger is a choice made at setup. Modules declare a logger port, and the host injects the logger |
 | 2026-11-25 | The interview runs in the user's language. Docs are written in English. The glossary keeps the original business term next to the name used in code |
 | 2026-11-25 | `adopt` (existing codebases) comes after the MVP; the standards are written so it fits later |
+| 2026-11-25 | **Supersedes the esbuild row above.** Modules build with `tsc`, which emits declarations and is what Turborepo recommends for internal packages; the dev loop reads `src` through the `@gyos/source` condition (see `knowledge/packaging-and-build.md`) |
