@@ -1,3 +1,5 @@
 # Worktrees created by agents working on this repo
 .claude/worktrees/
 node_modules/
+# Eval runs
+evals/results/
