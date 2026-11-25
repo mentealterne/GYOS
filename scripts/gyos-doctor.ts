@@ -10,7 +10,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** Bumped with every change to the checks; /gyos:doctor compares a product's copy with the plugin's. */
-export const DOCTOR_VERSION = "3";
+export const DOCTOR_VERSION = "4";
 
 export type Level = "fail" | "warn" | "note";
 
@@ -514,7 +514,9 @@ function checkArchitecture(ctx: Context, name: string, file: string): void {
   for (const item of items) {
     if (!/Trap:/i.test(item.text) && !/retired/i.test(item.text)) add("fail", file, `invariant C${item.number} has no trap`);
   }
-  if (/\b20\d\d-\d\d-\d\d\b/.test(text)) add("warn", file, "contains a date: decisions belong in development/decisions.md, not in the contract");
+  if (/\b20\d\d-\d\d-\d\d\b/.test(text.replace(/<!--[\s\S]*?-->/g, ""))) {
+    add("warn", file, "contains a date: decisions belong in development/decisions.md, not in the contract");
+  }
 
   // The trace: every path in it exists, or the trace is marked unverified.
   const start = text.indexOf("The trace");

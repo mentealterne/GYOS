@@ -52,13 +52,15 @@ For each context in the map that gets a module, in the map's order:
    | `architecture.md` | The map's invariants, as `C1`, `C2`, … with their traps; the classification; the module's areas, published language and required ports |
    | `workflow.md` | The template as it is, with this context's clarify dimensions, gates and standing risks filled in, and the testing-style variant from ADR 0002 applied |
    | `testing.md` | The module's real commands, with the scenario row dropped unless the style is BDD + TDD |
-   | `scenarios.md` | Created when the context has a product surface. The map's examples go under "Out of scope and known gaps" as promises not built yet, with their real values. `/gyos:feature` turns each one into a `.feature` file when it builds it |
+   | `scenarios.md` | Created when the context has a product surface. The module's example `.feature` files (from the template) are indexed, each labelled as the GYOS template's example and not a product promise; the doctor fails on a feature file the index misses. The map's examples go under "Out of scope and known gaps" as promises not built yet, with their real values. `/gyos:feature` turns each one into a `.feature` file when it builds it |
    | `state-of-the-code.md` | The example-area entry: the module's example behaviour (create, list, rename, a name unique per tenant) came from the GYOS template, isn't a product decision, and must be replaced or removed before release |
    | `development/decisions.md` | The Active table with the four setup ADRs; an empty log |
    | `development/todo.md` | One entry: replace the example area. Urgent when the first real feature of this context is built, and before any release |
 
    **No `{{` and no `<!-- gyos:` may remain.** A slot without confirmed knowledge gets
-   `Unverified:` or `—`, and its question goes to the map.
+   `Unverified:` or `—`, and its question goes to the map. The load plan's token counts come last:
+   run `node scripts/gyos-doctor.ts`, and copy the numbers it measured ("tokens measured") into
+   `SKILL.md`.
 3. **Move the knowledge out of the map.** In the context's map entry, replace the draft glossary,
    the invariants and the examples with links to the skill's files. From now on, the skill is
    where they live.
