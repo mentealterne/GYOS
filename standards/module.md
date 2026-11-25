@@ -106,21 +106,30 @@ database handle. A host doesn't import anything below the published entry points
 
 | Part | Holds | May import | Never imports |
 | --- | --- | --- | --- |
-| `index.ts` | The factory and the config contract | Everything it wires | — |
-| `contracts.ts` | Types, ports and errors (as types) that consumers code against | Types only | Any implementation |
-| `module-controllers/` | The operations, with input parsing | Services, vocabulary, zod | Adapters, `db/`, transport types |
-| `<area>/domain/` | Pure rules: no I/O, no clock, no logger | The vocabulary, its own `domain/` | Anything else |
-| `<area>/services/` | Use cases | Its `domain/`, any `ports.ts` (types), the logger port | `adapters/`, `db/`, Drizzle, `pg` |
-| `<area>/ports.ts` | Interfaces: repositories, notifiers, outside systems | Types only | Any implementation |
-| `<area>/adapters/` | Implementations of the ports, and mapping rows to domain types | Its `ports.ts`, `db/`, Drizzle, `pg`, Node built-ins | `services/`, another area's adapters |
-| `<vocabulary>.ts` | The module's published language | zod | Anything with I/O |
-| `repositories.ts` | Builds every adapter on the connection | Adapters, ports (types), `db/`, Drizzle | Services, controllers |
-| `db/` | The schema and the migration runner | Drizzle, `pg`, Node built-ins | Anything else in the module |
-| `config/` | The configuration contract | The logger port, `migrations.ts`, ports (types), `pg` (types) | Adapters, services |
-| `logger.ts`, `migrations.ts` | The logger port and fallback; the migrations folder | Nothing (Node built-ins for `migrations.ts`) | Everything else |
+| `index.ts` | The factory and the config contract | Everything it wires | Below another module's entry points |
+| `contracts.ts` | Types, ports and errors (as types) that consumers code against | Types only, from the module and from other modules' entry points | Any implementation |
+| `module-controllers/` | The operations, with input parsing | Other controllers, services, the vocabulary, zod | Adapters, `db/`, any other package (transport types included), Node built-ins |
+| `<area>/domain/` | Pure rules: no I/O, no clock, no logger | The vocabulary, its own `domain/` | Anything else: packages (zod included), Node built-ins, other areas |
+| `<area>/services/` | Use cases | Its own `domain/` and `services/`, any `ports.ts`, the vocabulary, the logger port; other modules' entry points as types | `adapters/`, `db/`, any package (Drizzle, `pg`), Node built-ins, other areas' `domain/` and `services/` |
+| `<area>/ports.ts` | Interfaces: repositories, notifiers, outside systems | Types only: any `ports.ts`, its own `domain/`, the vocabulary; other modules' entry points as types | Any implementation |
+| `<area>/adapters/` | Implementations of the ports, and mapping rows to domain types | Its own `ports.ts`, `domain/` and `adapters/`, the vocabulary, `db/`, the logger port, any package (Drizzle, `pg`, an outside SDK, another module's entry points), Node built-ins | `services/`, another area's `adapters/`, `ports.ts` or `domain/` |
+| `<vocabulary>.ts` | The module's published language | zod, the vocabulary (its other files) | Anything with I/O |
+| `repositories.ts` | Builds every adapter on the connection | Adapters, any `ports.ts`, `db/`, Drizzle, `pg` | Services, controllers, other modules |
+| `db/` | The schema and the migration runner | Its own files, the vocabulary (for an enum built from a published union), Drizzle, `pg`, Node built-ins | Anything else in the module |
+| `config/` | The configuration contract | Its own files, the logger port, `migrations.ts`, any `ports.ts` (types), `pg`, Node built-ins; other modules' entry points as types | Adapters, services |
+| `logger.ts` | The logger port and the fallback | Nothing | Everything |
+| `migrations.ts` | The migrations folder | Node built-ins | Everything else |
+
+**Other modules (M10).** Wherever a row allows "the vocabulary", a module that conforms to another
+module's language may also import that module's vocabulary subpaths, as values: the domain
+applies its constants, a controller parses with its schemas, `db/` builds an enum from its union.
+"As types" means `import type` or `export type … from`: with `verbatimModuleSyntax`,
+`import { type X }` keeps the import at runtime, so it counts as a value import. No part imports
+below another module's entry points, `index.ts` included.
 
 The architecture tests read this table as an **allow-list**: an import that no row allows is a
-violation. `src/tests/` is not checked.
+violation. Next to every rule there is a synthetic import that breaks it, and next to every
+allowance one that uses it. `src/tests/` is not checked.
 
 **Areas talk through ports and rules, never through each other's adapters.**
 
@@ -181,7 +190,8 @@ _Trap:_ a Drizzle call in a service is a place the next schema change will have 
 
 Nothing under `src/` reads `process.env`: the host reads the environment and passes the values
 in. Tooling at the module's root (`drizzle.config.ts`, `scripts/`) may read it, and so may the
-integration tests. An architecture test fails on any other read.
+integration tests. An architecture test fails on any other read, however it is spelled:
+`process["env"]`, `const { env } = process`, `import { env } from "node:process"` included.
 _Why:_ bad configuration fails at boot, not at somebody's first request, and the person fixing
 it sees every problem in one restart, not one per restart.
 
