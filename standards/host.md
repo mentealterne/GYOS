@@ -109,7 +109,7 @@ operation of one module, never a route that calls two.
 | --- | --- | --- |
 | Invalid input: the module's `is<Name>InputError` says so | 400, with `issues` | `invalid-input` |
 | A refusal: the module's error class, by its `code` | 404, 409 or 422, from the route file's map | the module's code |
-| The host's own refusal (`HttpError`), or the JSON parser's | its 4xx | `missing-tenant`, `invalid-tenant`, `invalid-json`, … |
+| The host's own refusal (`HttpError`), or any error with a 4xx `status`: the JSON parser's, the router's | its 4xx | `missing-tenant`, `invalid-tenant`, `invalid-json`, `bad-request`, … |
 | No route | 404 | `route-not-found` |
 | Anything else: a bug | 500, with an `id` | `internal` |
 
@@ -119,6 +119,12 @@ operation of one module, never a route that calls two.
 - **A bug leaks nothing.** The response carries a fixed message and an id; the log line carries the
   same id, the method, the path and the error with its stack.
 - A refusal class that no route file maps is a bug, and answers 500.
+- **A 4xx error shows its message only when it says it may** (`expose: true`, the convention of
+  http-errors); otherwise the client gets a fixed one, because the message may echo the request. A
+  path parameter with malformed percent-encoding, which Express's router refuses with a 400, is
+  one: **verified** on every run, it answers 400, not 500.
+- An error thrown after the response has started can't change its status: it is logged, with the
+  method and the path, and Express's default handler cuts the connection.
 
 **H8. Graceful shutdown.** On `SIGTERM` or `SIGINT`: `/ready` turns 503, the server stops accepting
 connections, requests in flight get `SHUTDOWN_TIMEOUT_MS` to finish before their connections are

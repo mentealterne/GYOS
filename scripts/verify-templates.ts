@@ -283,6 +283,15 @@ function smokeChecks(): Check[] {
       tenant: true,
       status: 404,
     },
+    {
+      name: "malformed percent-encoding",
+      method: "PATCH",
+      path: `${firstItems}/%E0%A4%A`,
+      json: { name },
+      tenant: true,
+      status: 400,
+      expect: (body) => (errorCode(body) === "bad-request" ? undefined : `code ${String(errorCode(body))}`),
+    },
     { name: "no such route", method: "GET", path: "/nowhere", status: 404 },
   ];
 }

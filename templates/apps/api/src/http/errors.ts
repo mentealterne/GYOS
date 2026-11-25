@@ -2,7 +2,8 @@
 // - a module's invalid input, recognised by its is<Name>InputError → 400, with the issues;
 // - a module's expected refusal, a typed error class with a code → the status its route file
 //   gives that code: 404, 409 or 422;
-// - the host's own refusal of a request, an HttpError, or the JSON parser's → its 4xx status;
+// - the host's own refusal of a request, an HttpError, or any error with a 4xx status (the JSON
+//   parser's, the router's) → that status;
 // - anything else is a bug → 500, logged with an id that the response carries, and nothing else
 //   about it in the response.
 // Every error response has one shape: { "error": { "code", "message", "issues"?, "id"? } }.
@@ -105,8 +106,14 @@ export const notFound: RequestHandler = (request, response) => {
 /** The last middleware: the host's own refusals, the parser's, and every bug. */
 export function errorHandler(logger: Logger): ErrorRequestHandler {
   return (error, request, response, next) => {
-    // The response has started: Express's default handler ends the connection.
+    // The response has started, so no status can be sent: log the error, then let Express's
+    // default handler end the connection.
     if (response.headersSent) {
+      logger.error(error instanceof Error ? error : new Error(String(error)), {
+        method: request.method,
+        path: request.path,
+        during: "a response already started",
+      });
       next(error);
       return;
     }
@@ -133,16 +140,18 @@ const PARSER_CODES: Record<string, string> = {
 };
 
 /**
- * An HttpError, or an error that says it may be shown to the client: http-errors' convention,
- * which Express's JSON parser follows (a 4xx `status` and `expose: true`).
+ * An HttpError, or an error with a 4xx `status`, http-errors' convention, which Express's JSON
+ * parser and its router follow (a path parameter with malformed percent-encoding is a 400). Its
+ * message is shown only when it says it may be (`expose: true`); otherwise the client gets a fixed
+ * one, because the message may hold what the request sent.
  */
 function clientError(error: unknown): { status: number; code: string; message: string } | undefined {
   if (error instanceof HttpError) return { status: error.status, code: error.code, message: error.message };
   if (typeof error !== "object" || error === null) return undefined;
   const { status, expose, type, message } = error as { status?: unknown; expose?: unknown; type?: unknown; message?: unknown };
-  if (typeof status !== "number" || status < 400 || status > 499 || expose !== true) return undefined;
+  if (typeof status !== "number" || !Number.isInteger(status) || status < 400 || status > 499) return undefined;
   const code = (typeof type === "string" ? PARSER_CODES[type] : undefined) ?? "bad-request";
-  return { status, code, message: typeof message === "string" ? message : "Bad request." };
+  return { status, code, message: expose === true && typeof message === "string" ? message : "The request is not valid." };
 }
 
 function send(response: Response, status: number, body: ErrorBody): void {
