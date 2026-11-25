@@ -172,8 +172,12 @@ The layer rules are only real if something fails when they are broken.
 **[version] TypeScript 7.0** is the native Go port, released 2026-07-08. It ships **no
 programmatic API**; a new one is expected in 7.1
 ([Announcing TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)).
-Until then, GYOS's architecture tests use the TypeScript 6 API, installed under the npm alias
-`@typescript/typescript6` as the announcement documents.
+The announcement publishes `@typescript/typescript6`, which re-exports the 6.0 API and ships a
+`tsc6` binary, and recommends two npm aliases: `"typescript": "npm:@typescript/typescript6"` for
+tools that import `typescript`, and `"@typescript/native": "npm:typescript@^7"` so that `tsc` is
+TypeScript 7. GYOS's workspace template does exactly that, and its architecture tests
+`import ts from "typescript"` to get `ts.preProcessFile` and `ts.transpileModule`. Verified with
+`tsc` 7.0.2 and API 6.0.3 on 2026-11-25.
 
 **Recommended combination:**
 - the hand-written test for layer rules inside a module;
@@ -182,8 +186,18 @@ Until then, GYOS's architecture tests use the TypeScript 6 API, installed under 
 
 ---
 
+## Verified
+
+Run on 2026-11-25 by `scripts/verify-templates.ts` (Node 24.6 locally, 24.22 in CI):
+
+- **Node's type stripping works through pnpm's workspace symlinks.** A host run with
+  `node --conditions=@gyos/source src/main.ts` imported two modules: Node followed
+  `node_modules/@module/<name>` to the real path `modules/<name>/src/index.ts`, outside
+  `node_modules`, and stripped its types.
+
 ## Not verified
 
 - How eslint-plugin-boundaries resolves TypeScript imports: its documentation page didn't render.
-- Whether Node's type stripping works through pnpm's workspace symlinks. It should, since they
-  resolve to real paths. A `pnpm deploy` copy would not, which is why production uses `dist`.
+- Whether typescript-eslint works with the `typescript` → `@typescript/typescript6` alias.
+- A `pnpm deploy` copy puts the modules under `node_modules`, where Node refuses to strip types;
+  that is why production runs `dist`. Not tried.
