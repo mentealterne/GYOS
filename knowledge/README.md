@@ -11,6 +11,7 @@ Skills load these files **in pieces, when the situation calls for them**, never 
 | [`domain-discovery.md`](domain-discovery.md) | Running the Socratic interview, finding bounded contexts, classifying subdomains |
 | [`modular-monolith.md`](modular-monolith.md) | Deciding module boundaries, how modules talk, what they share |
 | [`ports-and-adapters.md`](ports-and-adapters.md) | Scaffolding or reviewing a module: layers, dependency injection, configuration, the logger |
+| [`packaging-and-build.md`](packaging-and-build.md) | Scaffolding a module or the workspace; build, export conditions, tsconfig, type stripping |
 | [`data-and-migrations.md`](data-and-migrations.md) | Anything touching the database: schema per module, Drizzle, migrations, published views |
 | [`bdd-and-testing.md`](bdd-and-testing.md) | Choosing a testing style, writing scenarios, wiring Cucumber |
 | [`decision-records.md`](decision-records.md) | Recording a decision, confronting a request with past decisions, writing `AGENTS.md` |
