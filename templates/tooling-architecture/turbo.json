@@ -1,0 +1,26 @@
+{
+  "$schema": "https://turborepo.com/schema.json",
+  "extends": ["//"],
+  "tasks": {
+    // The tests read every module and app from disk (src/workspace.ts), and none of them is a
+    // dependency of this package: without these inputs, Turborepo would replay a stale pass
+    // after a module broke a rule. The exclusions mirror what workspace.ts skips.
+    "test:unit": {
+      "inputs": [
+        "$TURBO_DEFAULT$",
+        "$TURBO_ROOT$/modules/**",
+        "$TURBO_ROOT$/apps/**",
+        "!$TURBO_ROOT$/modules/*/node_modules",
+        "!$TURBO_ROOT$/modules/*/dist",
+        "!$TURBO_ROOT$/modules/*/reports",
+        "!$TURBO_ROOT$/modules/*/.turbo",
+        "!$TURBO_ROOT$/modules/*/coverage",
+        "!$TURBO_ROOT$/apps/*/node_modules",
+        "!$TURBO_ROOT$/apps/*/dist",
+        "!$TURBO_ROOT$/apps/*/reports",
+        "!$TURBO_ROOT$/apps/*/.turbo",
+        "!$TURBO_ROOT$/apps/*/coverage"
+      ]
+    }
+  }
+}

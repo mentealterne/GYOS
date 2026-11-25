@@ -540,6 +540,17 @@ so turning it on would switch them too. Each tool turns `@gyos/source` on in its
 - In `turbo.json`, `build` depends on `^build` and outputs `dist/**`. `test:integration` is not
   cached and lists `DATABASE_URL` in `passThroughEnv`: Turborepo 2 hides undeclared environment
   variables from tasks.
+- **`typecheck`, `test:unit` and `test:scenarios` depend on a `transit` task** that depends on
+  `^transit` and matches no script. Through `@gyos/source` a package compiles its dependencies'
+  source, which is not in its own hash: without the transit task, a dependent replayed a cached
+  pass after a breaking change in a dependency (verified, Turborepo 2.11). `transit` puts the
+  dependencies' files in the hash and still lets the tasks run in parallel.
+- **`tooling/architecture` reads every module from disk** but depends on none, so its own
+  `turbo.json` adds `$TURBO_ROOT$/modules/**` and `$TURBO_ROOT$/apps/**` to the inputs of
+  `test:unit`, minus what it skips (`node_modules`, `dist`, `reports`, `.turbo`, `coverage`).
+- `tsconfig.base.json` is a `globalDependencies` entry: a change to it invalidates every task.
+- `scripts/verify-templates.ts` breaks a dependency, then a module, after a first run, and
+  expects the cached task to fail.
 - esbuild emits no declarations and no type check. tsup is unmaintained.
 
 **The base tsconfig** (`tsconfig.base.json` at the workspace root) **[version: TypeScript 7.0]**:

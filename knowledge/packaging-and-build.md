@@ -131,11 +131,13 @@ How lint gets TypeScript 6 is **not settled yet**; see the module standard.
 
 ```json
 {
+  "globalDependencies": ["tsconfig.base.json"],
   "tasks": {
+    "transit": { "dependsOn": ["^transit"] },
     "build": { "dependsOn": ["^build"], "outputs": ["dist/**"] },
-    "typecheck": { "dependsOn": ["^build"] },
-    "test:unit": {},
-    "test:scenarios": {},
+    "typecheck": { "dependsOn": ["transit"] },
+    "test:unit": { "dependsOn": ["transit"] },
+    "test:scenarios": { "dependsOn": ["transit"], "outputs": ["reports/**"] },
     "test:integration": { "cache": false }
   }
 }
@@ -143,6 +145,29 @@ How lint gets TypeScript 6 is **not settled yet**; see the module standard.
 
 `build` depends on the builds of the packages it imports, and caches `dist/**`. Integration
 tests talk to a database, so they are never cached.
+
+**A task with no `dependsOn` replays stale results.** Turborepo hashes a task from its own
+package's files and the hashes of the tasks it depends on. With `@gyos/source`, a package's
+typecheck and tests compile its dependencies' source, which is in neither. Turborepo's docs
+describe exactly this: a breaking change in a dependency, then a cache hit in the package that
+uses it. `dependsOn: ["^typecheck"]` fixes it but serialises the tasks; a **transit node**, a task
+that depends on `^transit` and matches no script, fixes it and keeps them parallel
+([Turborepo: dependent tasks that can be run in parallel](https://turborepo.dev/docs/crafting-your-repository/configuring-tasks#dependent-tasks-that-can-be-run-in-parallel)).
+**Verified** on 2026-11-25 with Turborepo 2.11.13: without it, breaking a module's factory
+signature left the host's `typecheck` a cache hit; with it, the task ran and failed.
+
+**A package that reads other packages from disk** without depending on them, like
+`tooling/architecture`, needs them in its `inputs`. A glob that starts with `$TURBO_ROOT$` is
+relative to the repository root, and setting `inputs` drops the `.gitignore` defaults, so the
+build and dependency folders are excluded by hand
+([Turborepo: `inputs`](https://turborepo.dev/docs/reference/configuration#inputs),
+[`$TURBO_ROOT$`](https://turborepo.dev/docs/reference/configuration#turbo_root)).
+**Verified** with Turborepo 2.11.13: the inputs list the modules' and apps' files and none under
+`node_modules` or `dist`, and a broken module made the cached architecture tests run and fail.
+
+**Root files** reach a package's hash only through `globalDependencies`
+([Turborepo: `globalDependencies`](https://turborepo.dev/docs/reference/configuration#globaldependencies)),
+so `tsconfig.base.json` is listed there.
 
 **`sideEffects: false`** is a hint for bundlers' tree-shaking and has no effect in plain Node. It
 is true for a GYOS module because nothing is constructed at import time (module standard, M3).

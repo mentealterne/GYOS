@@ -4,9 +4,10 @@
 //
 // In a temp directory it copies templates/workspace, adds tooling/architecture, scaffolds two
 // modules with scripts/new-module.ts, adds a small host (apps/smoke) that composes both, installs,
-// and runs typecheck, build, the unit and architecture tests, the scenarios, drizzle-kit check
-// and generate (which must find nothing to do), the host from source and from the build,
-// db:migrate and the integration tests.
+// and runs typecheck, build, the unit and architecture tests, the scenarios, Turborepo's cache
+// invalidation (a change outside a package must not replay a cached pass), drizzle-kit check and
+// generate (which must find nothing to do), the host from source and from the build, db:migrate
+// and the integration tests.
 //
 // DATABASE_URL must reach a Postgres where the user may create databases: the database steps run
 // in a new database, created here and dropped at the end, so they start from an empty database.
@@ -51,8 +52,79 @@ function run(step: string, command: string, args: string[], options: { cwd?: str
   return ok;
 }
 
+/** Runs a command that must fail; when `output` is given, its output must match it too. */
+function runExpectingFailure(
+  step: string,
+  command: string,
+  args: string[],
+  options: { cwd?: string; env?: NodeJS.ProcessEnv; output?: RegExp } = {},
+): boolean {
+  console.log(`\n▶ ${step} (must fail)\n  $ ${[command, ...args].join(" ")}`);
+  const started = performance.now();
+  const outcome = spawnSync(command, args, {
+    cwd: options.cwd ?? root,
+    env: { ...baseEnv, ...options.env },
+    encoding: "utf8",
+  });
+  const output = `${outcome.stdout ?? ""}${outcome.stderr ?? ""}`;
+  console.log(output.split("\n").slice(-25).join("\n"));
+  const failed = outcome.status !== 0 && outcome.error === undefined;
+  const matched = options.output === undefined || options.output.test(output);
+  if (!failed) console.error("  It succeeded.");
+  if (failed && !matched) console.error(`  It failed, but its output doesn't match ${String(options.output)}.`);
+  const ok = failed && matched;
+  results.push({ step, status: ok ? "passed" : "failed", seconds: (performance.now() - started) / 1000 });
+  return ok;
+}
+
 function skip(step: string): void {
   results.push({ step, status: "skipped", seconds: 0 });
+}
+
+/**
+ * Turborepo must not replay a pass when something the task reads has changed outside its own
+ * package: a dependency's source, which a dependent typechecks through @gyos/source, or a module
+ * that tooling/architecture reads from disk. After a first run has filled the cache, each case
+ * breaks one file, expects the task to fail, then restores the file and expects it to pass.
+ */
+function checkCacheInvalidation(): boolean {
+  const [first, second] = MODULES;
+  const cases = [
+    {
+      step: "cache: a dependency's change reaches the host's typecheck",
+      file: join(root, "modules", first, "src", "index.ts"),
+      edit: (text: string) =>
+        text.replace(/(export function create\w+Module\(input: \w+ModuleConfig)\)/, "$1, broken: number)"),
+      args: ["exec", "turbo", "run", "typecheck", "--filter", "smoke"],
+      output: /TS2554/,
+    },
+    {
+      step: "cache: a module's change reaches tooling/architecture",
+      file: join(root, "modules", second, "src", "db", "migrate.ts"),
+      edit: (text: string) =>
+        text.replace(/export const MIGRATIONS_TABLE = "[^"]+";/, `export const MIGRATIONS_TABLE = "__migrations_${first}";`),
+      args: ["exec", "turbo", "run", "test:unit", "--filter", "@tooling/architecture"],
+      output: /bookkeeping/,
+    },
+  ];
+  for (const { step, file, edit, args, output } of cases) {
+    const original = readFileSync(file, "utf8");
+    const broken = edit(original);
+    if (broken === original) {
+      console.error(`\n${step}: the edit didn't apply to ${file}`);
+      results.push({ step, status: "failed", seconds: 0 });
+      return false;
+    }
+    writeFileSync(file, broken);
+    let caught: boolean;
+    try {
+      caught = runExpectingFailure(step, "pnpm", args, { output });
+    } finally {
+      writeFileSync(file, original);
+    }
+    if (!caught || !run(`${step}, restored`, "pnpm", args)) return false;
+  }
+  return true;
 }
 
 const journalLength = (moduleDir: string): number =>
@@ -189,6 +261,7 @@ function verify(): void {
   for (const task of ["typecheck", "build", "test:unit", "test:scenarios"]) {
     if (!run(task, "pnpm", ["run", task])) return;
   }
+  if (!checkCacheInvalidation()) return;
   const smoke = join(root, "apps", "smoke");
   if (!run("typecheck GYOS scripts", "pnpm", ["exec", "tsc", "-p", "tsconfig.gyos-scripts.json"], { cwd: smoke })) {
     return;
