@@ -82,13 +82,37 @@ by the scenarios and unit tests (with the in-memory ones), so the two cannot dri
 
 **Areas.** A module has one or more areas: the parts of the bounded context that change for
 different reasons, for example `authentication`, `account` and `company` inside an identity
-module. A new module starts with one area, named after its main concept. `scripts/new-module.ts`
-renames only the module: its `items` area and the `0000_init` migration that creates the `items`
-table are an example, replaced before the first deploy (delete `drizzle/`, then `db:generate`),
-because after it migrations are expand-only. The scaffolder's output and the module's
-`README.md` say so. This standard says
+module. A new module starts with one area, named after its main concept. This standard says
 "area", not "subdomain", because GYOS's knowledge base uses "subdomain" in the strategic DDD
 sense (core, supporting, generic).
+
+**The scaffolder names the first area.** `scripts/new-module.ts <workspace> <name> --area
+<plural> --entity <singular>` (kebab-case; `items` and `item` when left out) renames every form
+of the template's example area, in one pass with the module's name:
+
+| Where the word stands | `--area treatment-plans --entity treatment-plan` gives |
+| --- | --- |
+| Folders, file names, import paths, the vocabulary export, URL paths | `src/treatment-plans/`, `treatment-plan-repository.postgres.ts`, `"./treatment-plans"`, `/case-management/treatment-plans` |
+| Identifiers | `TreatmentPlan`, `treatmentPlanId`, `TREATMENT_PLAN_NAME_MAX_LENGTH`, `createTreatmentPlanService` |
+| SQL names, in `src/db/schema.ts`, the tests and `drizzle/` | the table `treatment_plans`, its index `treatment_plans_tenant_id_name_key` |
+| Prose: comments, test names, log lines, `.feature` files and their steps | "a treatment plan", "Treatment plans" |
+
+`scripts/template-names.ts` holds the rules and says how each place is recognised. A name that
+would clash with one the template already uses (`tenant`, `name`, `Error`, a reserved word,
+`eval` and `arguments` included) is refused, and so are two files that would land on one path,
+and the area `other-area`, which the layer tests make up as a second area.
+
+**The migration is renamed as text, not regenerated.** drizzle-kit is not installed when the
+scaffolder runs, and the module's name is already renamed in the same files. The renamed
+`0000_init` passes `drizzle-kit check`, and `db:generate` finds nothing to do (verified on every
+run: `scripts/verify-templates.ts` scaffolds `case-management` with `treatment-plans` and `sales`
+with `orders`, runs every test of both, and checks that no `item` is left in them or in their
+routes).
+
+**The area is still an example.** What it holds (a name unique within a tenant, a rename) is
+made the module's own or replaced, and before the first deploy its migration is regenerated
+(delete `drizzle/`, then `db:generate`), because after it migrations are expand-only. The
+scaffolder's output and the module's `README.md` say so.
 
 ---
 

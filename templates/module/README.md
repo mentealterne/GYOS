@@ -8,18 +8,20 @@ It owns the Postgres schema `sample` and migrates it itself. Hosts build it once
 
 This module was scaffolded from a template, and it still holds the template's example:
 
-- **`items` is an example area.** `src/items/`, `src/items-vocabulary.ts` (exported as
-  `"./items"`), `features/items.feature` and the tests that use them show the shape of an area.
-  Replace them with this module's own area, named after its main concept, and rename the
-  `"./items"` export in `package.json` with the vocabulary file.
+- **`src/items/` is an example area,** named when the module was scaffolded
+  (`scripts/new-module.ts --area <plural> --entity <singular>`). It, `src/items-vocabulary.ts`
+  (exported as `"./items"`), `features/items.feature` and the tests that use them show the shape
+  of an area: a name unique within a tenant, and a rename. Make it this module's own, or replace
+  it with an area named after the module's main concept; rename the `"./items"` export in
+  `package.json` with the vocabulary file.
 - **Its routes are an example too,** when the module was added to the host with
   `scripts/new-module.ts --host apps/api`: `apps/api/src/http/routes/sample.ts` and its test map
-  the `items` operations onto `/sample/items`.
-- **`drizzle/` holds the example's migration,** `0000_init`, which creates the `items` table in
-  the `sample` schema. Before the first deploy, delete `drizzle/` and run `pnpm db:generate` to
-  start the history from this module's real schema. After the first deploy migrations are expand-only: a table that has shipped
-  is never simply dropped, so an example table deployed once stays until a later contract step
-  removes it.
+  the example's operations onto `/sample/items`.
+- **`drizzle/` holds the example's migration,** `0000_init`, which creates the table
+  `"sample"."items"`. Before the first deploy, delete `drizzle/` and run `pnpm db:generate` to
+  start the history from this module's real schema. After the first deploy migrations are
+  expand-only: a table that has shipped is never simply dropped, so an example table deployed
+  once stays until a later contract step removes it.
 
 ## Scripts
 

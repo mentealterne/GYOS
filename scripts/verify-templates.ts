@@ -3,7 +3,9 @@
 //   DATABASE_URL=postgres://user@localhost:5432/postgres node scripts/verify-templates.ts [--keep] [--no-db]
 //
 // In a temp directory it copies templates/workspace, adds tooling/architecture and the host
-// (templates/apps/api), scaffolds two modules into both with scripts/new-module.ts --host, installs,
+// (templates/apps/api), scaffolds three modules into both with scripts/new-module.ts --host (the
+// second and third with their example area renamed: --area treatment-plans --entity
+// treatment-plan, and --area orders --entity order), installs,
 // and runs typecheck, build, the unit and architecture tests, the scenarios, Turborepo's cache
 // invalidation (a change outside a package must not replay a cached pass), a consumer of the
 // modules' build, drizzle-kit check and generate (which must find nothing to do), the host from
@@ -17,7 +19,7 @@
 // No dependencies. Runs with Node's type stripping (Node 24).
 import { spawn, spawnSync } from "node:child_process";
 import { randomUUID } from "node:crypto";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -25,12 +27,26 @@ import { fileURLToPath } from "node:url";
 const REPO = fileURLToPath(new URL("../", import.meta.url));
 // The second name has two words, so every run re-checks what the standard claims for them: a
 // quoted schema ("case-management"), PascalCase and UPPER_SNAKE identifiers, a camelCase field
-// in the host.
-const MODULES = ["billing", "case-management"] as const;
+// in the host. The third names its area like a fixture of the template's tests once did.
+const MODULES = ["billing", "case-management", "sales"] as const;
 /** Where the host is, in the workspace: what /gyos:init scaffolds, and what --host names. */
 const HOST = "apps/api";
-/** The path of each module's example area under its routes: /<module>/<area>. */
-const AREAS: Record<(typeof MODULES)[number], string> = { billing: "items", "case-management": "items" };
+/**
+ * Each module's example area. The first keeps the template's; the second is renamed, with two
+ * words, so every run re-checks every form: folders, identifiers, the table, the migration. The
+ * third is "orders", the fake second area the layer tests used to make up: a module whose own
+ * area has that name failed them.
+ * `path` is where its routes are, under /<module>/; `list` is the key of the list they answer.
+ */
+const AREAS: Record<(typeof MODULES)[number], { flags: string[]; path: string; list: string }> = {
+  billing: { flags: [], path: "items", list: "items" },
+  "case-management": {
+    flags: ["--area", "treatment-plans", "--entity", "treatment-plan"],
+    path: "treatment-plans",
+    list: "treatmentPlans",
+  },
+  sales: { flags: ["--area", "orders", "--entity", "order"], path: "orders", list: "orders" },
+};
 
 const flags = new Set(process.argv.slice(2));
 const keep = flags.has("--keep");
@@ -156,6 +172,37 @@ function checkMigrationsMatchSchema(): boolean {
 }
 
 /**
+ * A module scaffolded with --area and --entity keeps nothing of the template's example: no path,
+ * no line, in the module or in its routes in the host, says item, Item or ITEM any more.
+ */
+function checkNothingOfTheExampleLeft(): boolean {
+  const step = "scaffold: nothing of the example area left";
+  const renamed = MODULES.filter((name) => AREAS[name].flags.length > 0);
+  const files = renamed.flatMap((name) => [
+    ...filesUnder(join(root, "modules", name)),
+    join(host, "src", "http", "routes", `${name}.ts`),
+    join(host, "src", "tests", "unit", "http", "routes", `${name}.test.ts`),
+  ]);
+  const left = files.flatMap((file) => {
+    const where = file.slice(root.length + 1);
+    if (/item/i.test(where)) return [where];
+    return readFileSync(file, "utf8")
+      .split("\n")
+      .flatMap((line, index) => (/item/i.test(line) ? [`${where}:${index + 1}: ${line.trim()}`] : []));
+  });
+  for (const line of left.slice(0, 20)) console.error(`  ${line}`);
+  results.push({ step, status: left.length === 0 ? "passed" : "failed", seconds: 0 });
+  return left.length === 0;
+}
+
+function filesUnder(dir: string): string[] {
+  return readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+    const path = join(dir, entry.name);
+    return entry.isDirectory() ? filesUnder(path) : [path];
+  });
+}
+
+/**
  * What only this verification needs, written into the host's folder because its dependencies are
  * installed there (none of it is part of the template): a tsconfig that checks GYOS's own scripts,
  * the script that creates and drops the run's database, and a consumer of the modules' build.
@@ -170,7 +217,7 @@ function writeVerificationFiles(): void {
     json({
       extends: "../../tsconfig.base.json",
       compilerOptions: { noEmit: true, allowImportingTsExtensions: true, typeRoots: ["./node_modules/@types"] },
-      files: ["new-module.ts", "verify-templates.ts"].map((file) => join(REPO, "scripts", file)),
+      files: ["new-module.ts", "template-names.ts", "verify-templates.ts"].map((file) => join(REPO, "scripts", file)),
     }),
   );
   // The consumer resolves the modules through `types` (their dist .d.ts), and checks those
@@ -220,7 +267,8 @@ try {
 interface Check {
   name: string;
   method: string;
-  path: string;
+  /** The path, or a function that gives it once the checks before it have run. */
+  path: string | (() => string);
   json?: unknown;
   tenant?: boolean;
   status: number;
@@ -229,14 +277,24 @@ interface Check {
 }
 
 const errorCode = (body: unknown): unknown => (body as { error?: { code?: unknown } } | undefined)?.error?.code;
-const itemsOf = (body: unknown): unknown[] => ((body as { items?: unknown[] } | undefined)?.items ?? []) as unknown[];
+/** The list a module's routes answer with, or undefined when the body has none under `key`. */
+const listOf = (body: unknown, key: string): unknown =>
+  typeof body === "object" && body !== null ? (body as Record<string, unknown>)[key] : undefined;
+const hasLength = (body: unknown, key: string, length: number): string | undefined => {
+  const list = listOf(body, key);
+  if (!Array.isArray(list)) return `no "${key}" list in the body`;
+  return list.length === length ? undefined : `${list.length} entries in "${key}", expected ${length}`;
+};
 
 /** The requests made to the running host, in order. */
 function smokeChecks(): Check[] {
-  const [first, second] = MODULES;
-  const firstItems = `/${first}/${AREAS[first]}`;
-  const secondItems = `/${second}/${AREAS[second]}`;
+  const [first, second, third] = MODULES;
+  const firstItems = `/${first}/${AREAS[first].path}`;
+  const secondItems = `/${second}/${AREAS[second].path}`;
+  const thirdItems = `/${third}/${AREAS[third].path}`;
   const name = "Blue widget";
+  /** The id of what "create in the renamed area" created. */
+  let renamedId = "";
   return [
     { name: "liveness", method: "GET", path: "/health", status: 200 },
     { name: "readiness", method: "GET", path: "/ready", status: 200 },
@@ -265,7 +323,7 @@ function smokeChecks(): Check[] {
       path: firstItems,
       tenant: true,
       status: 200,
-      expect: (body) => (itemsOf(body).length === 1 ? undefined : `${itemsOf(body).length} items, expected 1`),
+      expect: (body) => hasLength(body, AREAS[first].list, 1),
     },
     {
       name: "each module sees only its own schema",
@@ -273,7 +331,49 @@ function smokeChecks(): Check[] {
       path: secondItems,
       tenant: true,
       status: 200,
-      expect: (body) => (itemsOf(body).length === 0 ? undefined : `${itemsOf(body).length} items, expected 0`),
+      expect: (body) => hasLength(body, AREAS[second].list, 0),
+    },
+    {
+      name: "create in the renamed area",
+      method: "POST",
+      path: secondItems,
+      json: { name },
+      tenant: true,
+      status: 201,
+      expect: (body) => {
+        const id = (body as { id?: unknown } | undefined)?.id;
+        if (typeof id !== "string") return "no id in the body";
+        renamedId = id;
+        return undefined;
+      },
+    },
+    {
+      name: "rename in the renamed area",
+      method: "PATCH",
+      path: () => `${secondItems}/${renamedId}`,
+      json: { name: "Navy widget" },
+      tenant: true,
+      status: 200,
+      expect: (body) =>
+        (body as { name?: unknown } | undefined)?.name === "Navy widget" ? undefined : `name ${JSON.stringify(body)}`,
+    },
+    {
+      name: "not found in the renamed area",
+      method: "PATCH",
+      path: `${secondItems}/${randomUUID()}`,
+      json: { name },
+      tenant: true,
+      status: 404,
+      expect: (body) => (errorCode(body) === "not-found" ? undefined : `code ${String(errorCode(body))}`),
+    },
+    { name: "create an order", method: "POST", path: thirdItems, json: { name }, tenant: true, status: 201 },
+    {
+      name: "list the renamed area",
+      method: "GET",
+      path: secondItems,
+      tenant: true,
+      status: 200,
+      expect: (body) => hasLength(body, AREAS[second].list, 1),
     },
     {
       name: "not found",
@@ -373,7 +473,8 @@ async function runHost(
     port = await listening;
     const tenant = { "x-tenant-id": `tenant-${randomUUID()}` };
     for (const check of smokeChecks()) {
-      const response = await fetch(`http://127.0.0.1:${port}${check.path}`, {
+      const path = typeof check.path === "function" ? check.path() : check.path;
+      const response = await fetch(`http://127.0.0.1:${port}${path}`, {
         method: check.method,
         headers: { ...(check.json === undefined ? {} : { "content-type": "application/json" }), ...(check.tenant ? tenant : {}) },
         body: check.json === undefined ? undefined : JSON.stringify(check.json),
@@ -382,7 +483,7 @@ async function runHost(
       const body: unknown = text === "" ? undefined : JSON.parse(text);
       const problem =
         response.status !== check.status ? `status ${response.status}, expected ${check.status}` : check.expect?.(body);
-      console.log(`  ${problem === undefined ? "ok  " : "FAIL"} ${check.name}: ${check.method} ${check.path} → ${response.status}`);
+      console.log(`  ${problem === undefined ? "ok  " : "FAIL"} ${check.name}: ${check.method} ${path} → ${response.status}`);
       if (problem !== undefined) problems.push(`${check.name}: ${problem} (${text})`);
     }
   } catch (error) {
@@ -431,9 +532,10 @@ async function verify(): Promise<void> {
   cpSync(join(REPO, "templates", "tooling-architecture"), join(root, "tooling", "architecture"), { recursive: true });
   cpSync(join(REPO, "templates", "apps", "api"), host, { recursive: true });
   for (const name of MODULES) {
-    const args = [join(REPO, "scripts", "new-module.ts"), root, name, "--host", HOST];
+    const args = [join(REPO, "scripts", "new-module.ts"), root, name, ...AREAS[name].flags, "--host", HOST];
     if (!run(`scaffold ${name}`, process.execPath, args)) return;
   }
+  if (!checkNothingOfTheExampleLeft()) return;
   // Running it again for a module already there changes nothing in the host.
   const hostFiles = ["package.json", "src/modules.ts", "src/http/routes/index.ts"].map((file) => join(host, file));
   const wired = hostFiles.map((file) => readFileSync(file, "utf8"));
@@ -462,6 +564,11 @@ async function verify(): Promise<void> {
   if (existsSync(join(root, "modules", "refused"))) {
     console.error("  It refused the host, but scaffolded the module first.");
     results.push({ step: "scaffold refuses a host: nothing written", status: "failed", seconds: 0 });
+    return;
+  }
+  // An entity named like something the template already uses would clash: it is refused.
+  const clash = [join(REPO, "scripts", "new-module.ts"), root, "clash", "--area", "tenants", "--entity", "tenant"];
+  if (!runExpectingFailure("scaffold refuses an area that would clash", process.execPath, clash, { output: /would clash/ })) {
     return;
   }
   writeVerificationFiles();
