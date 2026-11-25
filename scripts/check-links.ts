@@ -9,7 +9,8 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
 const ROOT = resolve(import.meta.dirname, "..");
-const SKIPPED = new Set([".git", "node_modules", "dist", "coverage", "worktrees"]);
+// templates/ holds files written for a product's layout, so their links resolve only once copied there.
+const SKIPPED = new Set([".git", "node_modules", "dist", "coverage", "worktrees", "templates"]);
 const LINK = /\[[^\]]*\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g;
 
 function markdownFiles(dir: string): string[] {
