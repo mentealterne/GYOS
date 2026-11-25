@@ -55,8 +55,11 @@ Check before asking anything:
 
 ## Rules
 
-1. **One question at a time.** Each question comes with a proposed answer the user can accept,
-   correct or reject.
+1. **One question at a time.** Each message ends with exactly one question, with a proposed
+   answer the user can accept, correct or reject.
+   - A second question, even a closely related one, waits for the next message.
+   - Explain the method in one line at most, the first time.
+   - Questions are short.
    - When there are two to four plausible answers, use the AskUserQuestion tool, with your
      recommendation first.
    - Otherwise, or when that tool isn't available, ask in plain text and list your proposal.
