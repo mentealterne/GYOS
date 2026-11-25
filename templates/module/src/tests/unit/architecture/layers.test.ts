@@ -52,7 +52,7 @@ const violations: Case[] = [
   {
     breaks: "a controller doesn't touch db/",
     path: "module-controllers/bad.controller.ts",
-    text: `import { items } from "../db/schema.ts";`,
+    text: `import { schema } from "../db/schema.ts";`,
     rule: "controllers",
   },
   {
@@ -106,7 +106,7 @@ const violations: Case[] = [
   {
     breaks: "a service doesn't import db/",
     path: "items/services/bad.ts",
-    text: `import { items } from "../../db/schema.ts";`,
+    text: `import { schema } from "../../db/schema.ts";`,
     rule: "services",
   },
   {
@@ -320,7 +320,7 @@ const allowances: Allowance[] = [
     allows: "an adapter uses db/, Drizzle, pg, the logger port and Node built-ins",
     path: "items/adapters/bad.postgres.ts",
     text: [
-      `import { items } from "../../db/schema.ts";`,
+      `import { schema } from "../../db/schema.ts";`,
       `import { eq } from "drizzle-orm";`,
       `import type { Pool } from "pg";`,
       `import type { SampleLogger } from "../../logger.ts";`,
