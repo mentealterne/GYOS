@@ -5,10 +5,12 @@ The shape of every domain skill GYOS generates, and the rules each one follows. 
 
 **Version: `domain-skill/1`.** Every generated `SKILL.md` records it in its frontmatter.
 
-The standard is taken from the one behind Knowledge-Driven Programming in production (see
-`knowledge/knowledge-driven-programming.md`), adapted to skills that GYOS generates for a new
-product. The reasons for its rules on decisions and context loading are in
-`knowledge/decision-records.md`.
+> **GYOS only.** The standard is taken from the one behind Knowledge-Driven Programming in
+> production, adapted to skills GYOS generates for a new product. The reasons are in the plugin's
+> `knowledge/knowledge-driven-programming.md` and `knowledge/decision-records.md`.
+> `/gyos:init` copies this file into the user's repo as `docs/standards/domain-skill.md`, and
+> drops the blocks and sections marked **GYOS only**, because they point at files that exist
+> only in the plugin.
 
 ---
 
@@ -28,9 +30,9 @@ product. The reasons for its rules on decisions and context loading are in
 12. [state-of-the-code.md](#state-of-the-codemd)
 13. [guardrails.md](#guardrailsmd)
 14. [development/](#development)
-15. [How GYOS fills a new skill](#how-gyos-fills-a-new-skill)
+15. [How GYOS fills a new skill (GYOS only)](#how-gyos-fills-a-new-skill-gyos-only)
 16. [Conformance checklist](#conformance-checklist)
-17. [Changing this standard](#changing-this-standard)
+17. [Changing this standard (GYOS only)](#changing-this-standard-gyos-only)
 
 ---
 
@@ -53,6 +55,10 @@ if nobody asked it anything? A domain skill would: a vocabulary, a contract, a h
 decisions. A skill that only performs an action on request is a utility. A utility is a single
 `SKILL.md` and is not held to this standard.
 
+**A core file that reads as generic has failed.** "Follow the repo's conventions" is a sentence
+an agent would have assumed anyway: in a core file it is filler. Every core file must say
+something that is true of *this* context and of no other.
+
 ---
 
 ## Where it lives, and what it may point at
@@ -60,18 +66,33 @@ decisions. A skill that only performs an action on request is a utility. A utili
 - **Location:** `.claude/skills/<context>/` in the user's repo, committed, so every teammate gets
   it with `git pull`. Claude Code loads project skills automatically.
 - **Name:** the context's kebab-case name, the same as its module (`billing` →
-  `modules/billing`, `@module/billing`). GYOS refuses a context name that would collide with a
-  built-in Claude Code command or with one of GYOS's own skills.
-- **Self-contained.** A generated skill cannot use `${CLAUDE_PLUGIN_ROOT}`: that variable is only
-  substituted in the plugin's own skills. It points only at files inside the user's repo:
+  `modules/billing`, `@module/billing`).
+- **Reserved names.** GYOS refuses a context name that would collide with a command:
+  - **GYOS's own skills:** `init`, `discover`, `context`, `feature`, `decide`, `doctor`, `adopt`,
+    `split`, `merge`, `upgrade`.
+  - **Claude Code's built-in commands [version: 2.1, 2026-11],** including `add-dir`, `agents`,
+    `bug`, `clear`, `compact`, `config`, `cost`, `exit`, `export`, `help`, `hooks`, `login`,
+    `logout`, `mcp`, `memory`, `model`, `permissions`, `plugin`, `pr-comments`, `release-notes`,
+    `resume`, `review`, `rewind`, `security-review`, `status`, `statusline`, `terminal-setup`,
+    `todos`, `usage`, `vim`.
 
-| It may point at | Copied there by |
+  `/gyos:doctor` checks against this list, and the list is updated when Claude Code adds commands.
+- **Self-contained.** A generated skill cannot use `${CLAUDE_PLUGIN_ROOT}`: that variable is only
+  substituted in the plugin's own skills. It points only at files inside the user's repo, as
+  **relative Markdown links**, so that `/gyos:doctor` can check that each one resolves.
+
+| It may point at | Created by |
 | --- | --- |
-| `docs/standards/module.md` | `/gyos:init`, from `standards/module.md`, with its version |
-| `docs/standards/domain-skill.md` | `/gyos:init`, from this file |
-| `docs/context-map.md` | `/gyos:discover` |
-| `docs/decisions/` | `/gyos:init`, `/gyos:decide` |
+| `docs/standards/module.md` | `/gyos:init`, copied from the plugin's `standards/module.md` |
+| `docs/standards/domain-skill.md` | `/gyos:init`, copied from this file without its GYOS-only parts |
+| `docs/context-map.md` | `/gyos:discover`: one entry per context with the Bounded Context Canvas fields, Open questions included, plus a Junctions section |
+| `docs/decisions/README.md` | `/gyos:init`: the decision format (ids, entry shape, Confirmation syntax), and nothing else |
+| `docs/decisions/0001-stack.md` … `0004-language.md` | `/gyos:init`, the setup ADRs, in this order: stack and defaults, testing style, logger, language of business terms in code |
+| `docs/decisions/NNNN-*.md` | `/gyos:decide`, and any skill recording a decision that weighed real alternatives |
 | `modules/<context>/` | `/gyos:init`, `/gyos:context` |
+
+Every copied file starts with a comment naming the GYOS version it came from, for
+`/gyos:upgrade`.
 
 ---
 
@@ -84,34 +105,41 @@ decisions. A skill that only performs an action on request is a utility. A utili
   architecture.md        core: the context's invariants, how to navigate its module
   workflow.md            core: the operating protocol
   testing.md             always, in GYOS: every module has a test suite
-  scenarios.md           when the context has behaviour a non-developer can observe
+  scenarios.md           when .feature files exist, or the context has a product surface
   state-of-the-code.md   when earned: known defects, deliberate oddities
   guardrails.md          when earned: prohibitions beyond the repo-wide ones
   development/
     decisions.md         dated decisions: an Active table above an append-only log
     todo.md              deferred work, and what would make it urgent
-    qa-checklist.md      the handoff artifact, by role
+    qa-checklist.md      the handoff artifact, by role; created by the first Change with a product surface
   references/            depth, loaded on demand
 ```
 
 **Four core files, always.** Without them a domain skill is not one: identity, language,
 contract, protocol.
 
-**In GYOS, `testing.md` is always present too,** because every module ships unit, architecture,
-scenario and integration tests (`docs/standards/module.md`). A suite the skill never mentions is
-a convention the agent can't follow.
+**In GYOS, `testing.md` is always present too,** because every module ships a test suite
+(`docs/standards/module.md`). A suite the skill never mentions is a convention the agent can't
+follow.
 
-**The other three files are created when the context has something to put in them,** and
-omitted until then:
-- `scenarios.md`;
-- `state-of-the-code.md`;
-- `guardrails.md`.
+**`development/decisions.md` and `development/todo.md` are always present,** created empty at
+generation. They are where the mandatory writes land.
 
-A file holding one apologetic line is ceremony; its absence says the same thing more honestly.
+**A product surface** is behaviour that a person using the product can observe: through the UI,
+an API response, an email, an export. A context with none is rare; a context that only computes
+something other contexts display still has one, indirectly, and is treated as having one.
+
+**`scenarios.md`** is required whenever the context's module has `.feature` files (the BDD + TDD
+testing style), and then it indexes every one of them. With the other testing styles it is
+required whenever the context has a product surface.
+
+**`state-of-the-code.md` and `guardrails.md`** are created when the context has something to put
+in them, and omitted until then. A file holding one apologetic line is ceremony; its absence says
+the same thing more honestly.
 
 **Optional files are created during work, not only at generation.** When work surfaces content
-for an optional file the skill doesn't have yet, the skill creates that file in the same turn
-and in the same change, and says so in chat:
+for an optional file the skill doesn't have yet, the skill creates it in the same turn and in the
+same change, and says so in chat:
 
 | Work surfaces… | Creates |
 | --- | --- |
@@ -123,45 +151,52 @@ and in the same change, and says so in chat:
 
 ## Where each kind of knowledge goes
 
+`workflow.md` carries this table, because the agent needs it while working, not only at
+generation.
+
 | Kind of knowledge | Goes to | Because |
 | --- | --- | --- |
 | A term that means something specific here | `glossary.md` | It is language, not a rule |
 | An invariant that must never break | `architecture.md` | It is a stable contract |
 | How to find where existing behaviour lives | `architecture.md` | A method doesn't go stale the way a path table does |
 | A known defect, or behaviour that looks wrong but is deliberate | `state-of-the-code.md` | It is the code's condition today, not the contract |
-| A dated decision, its reason and what it supersedes | `development/decisions.md` | It is state, and it accumulates |
-| A decision that spans contexts (a junction, a default) | `docs/decisions/` | It belongs to no single context |
-| An observable behaviour the context guarantees | `scenarios.md` and the `.feature` files | It is behaviour, not implementation |
+| A dated decision about this context | `development/decisions.md` | It is state, and it accumulates |
+| A decision that spans contexts, or weighed real alternatives | `docs/decisions/` (an ADR), with a linked row in the Active table of each context it binds | It belongs to no single context, or deserves a full record |
+| A junction: its name and owner | `docs/context-map.md`, Junctions section, linking the ADR that holds the reasons | Recorded once |
+| An observable behaviour the context guarantees | The `.feature` files, indexed in `scenarios.md` | It is behaviour, not implementation |
 | A test convention, a tier, what counts as a regression | `testing.md` | It is method |
 | A rule the agent follows every time, at a point in the sequence | `workflow.md` | It is protocol |
 | An absolute prohibition | `guardrails.md` | It applies at every step |
-| An open question from discovery | `docs/context-map.md`, the context's Open questions | It is shared with the people who can answer it |
+| An open question | `docs/context-map.md`, the context's Open questions | It is shared with the people who can answer it |
+| Deferred work | `development/todo.md` | It must survive the session |
 | Depth on any of the above | `references/` | It is loaded only when a task needs it |
 
 **Decisions never go in `architecture.md`.** That file is a contract, short enough to read whole
-before writing code. Decisions accumulate one per session, forever; mixed into the contract,
-they make it unreadable within months.
+before writing code. Decisions accumulate one per session, forever; mixed into the contract, they
+make it unreadable within months.
 
 ---
 
 ## Size ceilings
 
 A threshold says when a file earns its place. A ceiling says when it has outgrown it. Without
-ceilings nothing is ever pruned: every other rule says *write*.
+ceilings nothing is ever pruned: every other rule says *write*. `workflow.md` carries this table
+and the pruning rule.
 
 | File | Ceiling | At the ceiling |
 | --- | --- | --- |
-| `SKILL.md` | ~150 lines | It has picked up domain knowledge: move it to the file that owns it |
-| `glossary.md`, `architecture.md`, `workflow.md` | ~200 lines | Depth has leaked into a contract: move it to `references/` |
-| `testing.md`, `scenarios.md`, `state-of-the-code.md`, `guardrails.md` | ~250 lines | Split by concern, or move detail to `references/` |
-| `development/decisions.md` | ~150 lines | Archive superseded entries (see [development/](#development)) |
-| `development/todo.md` | ~150 lines | Delete entries that are done or no longer true |
-| `development/qa-checklist.md` | ~400 lines | Split by concern within its organization by role |
+| `SKILL.md` | 150 lines | It has picked up domain knowledge: move it to the file that owns it |
+| `glossary.md`, `architecture.md`, `workflow.md` | 200 lines | Depth has leaked into a contract: move it to `references/` |
+| `testing.md`, `scenarios.md`, `state-of-the-code.md`, `guardrails.md` | 250 lines | Split by concern, or move detail to `references/` |
+| The Active table in `development/decisions.md` | 50 rows | Too many decisions hold at once: some belong in `architecture.md` as invariants, or in an ADR |
+| The log in `development/decisions.md` | 400 lines | Archive (see [development/](#development)) |
+| `development/todo.md` | 150 lines | Delete entries that are done or no longer true |
+| `development/qa-checklist.md` | 400 lines | Split by concern, keeping the organization by role |
 | `references/*` | none | Not in the load plan; length costs nothing until something loads it |
 
-These are ceilings, not targets: a 60-line `architecture.md` that states the invariants is
-finished. The numbers are approximate. What matters is that "this file is too long" is a check
-someone performs, and `/gyos:doctor` performs it.
+**How `/gyos:doctor` applies them:** a file over its ceiling is a warning; a file at twice its
+ceiling fails. These are ceilings, not targets: a 60-line `architecture.md` that states the
+invariants is finished.
 
 **Pruning is part of the write.** When the skill writes to a file that is over its ceiling,
 bringing it back under is part of the same write: not a follow-up, not a todo entry. Prune only
@@ -182,22 +217,29 @@ name: billing
 description: >
   Owns the billing context of <product>: invoices, payment terms, credit notes, dunning.
   Use it whenever work or a question touches billing, even without naming it: "why was
-  this invoice issued twice?", "add a late fee", "what does 'settled' mean?". Vocabulary:
-  invoice, credit note, payment term, dunning, settled. Not for payments processing
-  (payments) or pricing (catalog).
+  this invoice issued twice?", "add a late fee", "what does 'settled' mean?".
+when_to_use: >
+  Vocabulary: invoice, credit note, payment term, dunning, settled, issue date.
+  Not for payment processing (payments) or prices (catalog).
 metadata:
   gyos-standard: domain-skill/1
   module: "@module/billing"
 ---
 ```
 
-**The `description` is what Claude matches on.** It names:
+**Only the frontmatter decides activation.** Claude reads a skill's body after it has activated,
+so whatever must wake the skill has to be in `description` or `when_to_use`. Together they name:
+
 1. the **context** and what it owns;
 2. the **question shapes** that should wake it;
-3. the **vocabulary**, so other skills can tell whose a word is without opening a file;
+3. the **top vocabulary**, every term of which appears in `glossary.md`;
 4. the **boundaries**: what is not this context's, and whose it is.
 
-Put the key use first. Together with `when_to_use`, the listing is cut at 1,536 characters.
+Put the key use first. Together, the two fields are cut at 1,536 characters.
+
+**Two frontmatter fields are forbidden:**
+- **`disable-model-invocation`** would stop the skill waking on its own.
+- **`paths`** would tie activation to files, and "what does 'settled' mean?" involves none.
 
 ### Activation: by name and by domain
 
@@ -205,16 +247,18 @@ Put the key use first. Together with `when_to_use`, the listing is cut at 1,536 
 most needed: when someone asks about its context without knowing a specialist exists.
 
 1. **By name:** `/billing`, or "billing skill".
-2. **By domain:** automatically, whenever the conversation turns to the context. State it as
-   signals an agent can check:
+2. **By domain:** automatically, from the `description` and `when_to_use` above.
+
+The body repeats the signals as a table. Its job is not to wake the skill but to let it decide,
+once awake, **whether to stay or hand over**:
 
 | Signal | Form |
 | --- | --- |
 | **Paths** | `modules/billing/**`, the frontend folder for billing, its `.feature` files |
-| **Vocabulary** | Terms from `glossary.md` appearing in the request. The glossary doubles as the detector |
+| **Vocabulary** | Terms from `glossary.md` in the request |
 | **Questions** | Recognizable question shapes, as examples |
 
-**Boundaries in both directions.** Say what doesn't wake the skill, especially where two contexts
+**Boundaries in both directions.** Say what doesn't belong here, especially where two contexts
 share a word. Where a request genuinely spans two contexts, say so, name the other skill, and
 follow the cross-domain rule in `workflow.md`.
 
@@ -229,18 +273,23 @@ that only if it says which of its files to open:
 - **Always:** `glossary.md`. It is how the request gets read.
 - **Inquiry:** the glossary, plus what the question needs. Often that is one file; "is this a
   bug?" needs `scenarios.md` and `state-of-the-code.md`.
-- **Change:** `architecture.md`, `workflow.md`, `testing.md`, `development/decisions.md` (the
-  Active table only).
+- **Change:** `architecture.md`, `workflow.md`, `testing.md`, and the Active table of
+  `development/decisions.md` (read up to the `## Log` heading).
 - **On arrival:** everything else, when the task reaches what it covers.
 - **The module's code and `docs/`:** only when the skill's own files don't answer.
 
-Each track carries an approximate token cost. `/gyos:doctor` measures it (characters ÷ 4) and
-updates the numbers. A number makes "load only what you need" concrete.
+**Token costs, as numbers.** The plan states them, estimated as characters ÷ 4:
+- **Inquiry:** a range, from the glossary alone to the glossary plus the largest file in the
+  Inquiry set.
+- **Change:** the whole Change set.
+
+`/gyos:doctor` reports the measured numbers next to the stated ones. `/gyos:doctor --fix`
+rewrites them; in CI the doctor only reports.
 
 ### Body
 
 1. **Identity.** One paragraph: what this skill owns, and what it doesn't.
-2. **Activation.** Both paths and the signal table.
+2. **Activation.** Both paths, and the stay-or-hand-over table.
 3. **Tracks.** Inquiry and Change, with the routing test (see `workflow.md`).
 4. **Load plan.** As above, with token costs.
 5. **Quick reference.** The module's key paths, and `references/` with a "load when" column.
@@ -263,12 +312,12 @@ drifting one identifier at a time.
 
   - The first column keeps the business term in the language the business uses (an Italian
     product keeps "fattura").
-  - The second column is the identifier in code, as recorded in the ADR on language that
-    `/gyos:init` writes.
-  - A term that exists in code points at where: a type, a table, a vocabulary constant.
+  - The second column is the identifier in code, following `docs/decisions/0004-language.md`.
+  - A term that exists in code points at where, as a relative link: a type, a table, a vocabulary
+    constant.
 - **Distinctions that matter:** pairs that are often confused, and what goes wrong when they are.
 - **Terms that mean something else elsewhere:** the same word in another context, with the skill
-  that owns that meaning. This is one of the two places a skill may name a neighbour.
+  that owns that meaning.
 - **Names not to use:** wrong or retired terms, and what to say instead.
 
 **Threshold:** at least one term that someone who knows the product couldn't guess from ordinary
@@ -283,22 +332,28 @@ it changes more than a few times a year, decisions have leaked into it.
 
 ### Contents
 
-- **The module standard applies.** One line pointing at `docs/standards/module.md`, never a copy
-  of it. Two copies of an architecture diverge.
-- **Context invariants:** numbered `C1`, `C2`, …, one line each, each with the rule and **the
-  trap it avoids**. A rule without its trap gets rationalized away under deadline pressure. These
-  are the business invariants discovery found ("an invoice, once issued, never changes amount"),
-  not the module rules, which the standard already states.
+- **The module standard applies.** One line linking `docs/standards/module.md`, never a copy of
+  it. Two copies of an architecture diverge.
+- **Context invariants:**
+  - numbered `C1`, `C2`, …, one line each, each with the rule and **the trap it avoids**. A rule
+    without its trap gets rationalized away under deadline pressure;
+  - these are the business invariants discovery found ("an invoice, once issued, never changes
+    amount"), not the module rules, which the standard already states;
+  - a C-number is never reused or renumbered. A retired invariant keeps its number, marked
+    retired, because decisions point at it.
 - **Classification and depth:** core, supporting or generic, and therefore how rich the domain
   model is. A supporting context with a near-empty `domain/` is correct, not unfinished.
 - **The areas** of the module, and what each owns.
-- **Published language:** the controllers' operations, `contracts.ts`, the vocabulary subpaths,
-  and any published views. This is what other contexts may rely on.
+- **Published language:** what other contexts may rely on:
+  - the controllers' operations;
+  - `contracts.ts`;
+  - the vocabulary subpaths;
+  - any published views.
 - **Required ports:** what the module needs from outside. Where a port is implemented by calling
-  another module, name the junction and point at its entry in `docs/context-map.md`.
+  another module, link the junction's entry in `docs/context-map.md`.
 - **How to navigate:**
-  - **The trace:** the call path from the outside in, as a chain of file kinds, with one
-    **verified** worked example. For example: route in `apps/api` →
+  - **The trace:** the call path from the outside in, as a chain of file kinds, with one worked
+    example whose every path exists. For example: route in `apps/api` →
     `billingController.issueInvoice` → `invoices/services/issue-invoice.ts` → `InvoiceRepository`
     → `invoices/adapters/invoice-repository.postgres.ts`.
   - **Naming as address:** where file names encode the vocabulary, knowing the term is knowing
@@ -333,9 +388,10 @@ A track at the bottom of a long file gets read in full every time, which defeats
 
 They apply in both tracks. A generated skill that omits one does not conform.
 
-**1. Clarify before loading.** Check that the request is unambiguous on the dimensions this
-context needs (each skill names its own: which tenant, which role, which document state). If one
-is missing, or the owner of the behaviour is unclear, stop and ask. Don't infer silently.
+**1. Clarify before loading anything beyond the glossary.** Check that the request is unambiguous
+on the dimensions this context needs; each skill names its own, such as which tenant, which role,
+which document state. If one is missing, or the owner of the behaviour is unclear, stop and ask.
+Don't infer silently.
 
 **2. Confront before changing.** Before implementing anything that would alter, remove or
 contradict a documented behaviour or a recorded decision:
@@ -346,10 +402,14 @@ contradict a documented behaviour or a recorded decision:
 5. update the affected documents in the same change. A decision that changes gets a new entry
    that supersedes the old one.
 
-Check `scenarios.md` and the Active table in `development/decisions.md` first, so this is
-mechanical rather than a matter of remembering. A request that changes documented behaviour is
-not refused; it is surfaced, confirmed, and the documentation follows. Silence is the failure, in
-either direction.
+Check these first, so the confront step is mechanical rather than a matter of remembering:
+- `scenarios.md`;
+- the Active table in `development/decisions.md`, whose rows include links to the ADRs in
+  `docs/decisions/` that bind this context;
+- the context invariants.
+
+A request that changes documented behaviour is not refused; it is surfaced, confirmed, and the
+documentation follows. Silence is the failure, in either direction.
 
 **3. Pin before refactoring.** Documented behaviour is captured by a scenario or a test *before*
 any refactoring that could change it. If the behaviour isn't pinned yet, pinning it is the first
@@ -378,18 +438,27 @@ omission and a deliberate one look the same afterwards.
 ```
 0  Clarify          rule 1
 1  Load             the Change set from the load plan
-2  Confront         rule 2: scenarios, the Active decisions, the invariants
+2  Confront         rule 2
 3  Gap analysis     what exists, what is missing, what the change touches; reported before code
 4  Example mapping  the rules and examples of the change; open questions go to the user, not into code
 5  Scenario first   a failing scenario (BDD + TDD), or a failing test (TDD only)
 6  Implement        the module standard's layer chain, test first in the inner loop
 7  Verify           every tier in testing.md; real results, not claims
-8  Update knowledge glossary, invariants, scenarios, state-of-the-code, made stale by the change
+8  Update knowledge the files the change made stale, filed and pruned by the tables below
 9  Record           rule 5, last
 ```
 
-Steps 4 and 5 follow the testing style recorded at setup. With the pragmatic style, step 5 is
-"tests are written", in any order.
+`/gyos:init` writes this protocol for the testing style in `docs/decisions/0002-testing-style.md`.
+With the "pragmatic" style, steps 4 and 5 become "tests are written", in any order.
+
+### Filing and pruning
+
+`workflow.md` carries two tables from this standard, verbatim:
+- [Where each kind of knowledge goes](#where-each-kind-of-knowledge-goes);
+- [Size ceilings](#size-ceilings), with the pruning rule.
+
+Steps 8 and 9 apply them. They live in `workflow.md` because the agent needs them while it works,
+and this standard isn't in the load plan.
 
 ### Crossing into another context
 
@@ -411,12 +480,16 @@ operation, a contract type, a published view, an event), also load its `scenario
 **The junction belongs to neither context.** When work spans two contexts, each skill applies its
 own rules to its own half, and the contract between them is owned by neither. That is where the
 expensive bugs live. Name the junction, say it belongs to neither, and settle its owner before
-implementing. The default owner is the host's composition root. Record the junction once, in
-`docs/context-map.md`, and the decision in `docs/decisions/`.
+implementing. The default owner is the host's composition root. The junction is recorded once:
+its name and owner in the Junctions section of `docs/context-map.md`, linking an ADR in
+`docs/decisions/` that holds the reasons.
 
-**A skill never lists its neighbours in `workflow.md`.** That list would go stale the day a
-context is added. Neighbours are named only in `glossary.md`, for shared terms, and in
-`SKILL.md`, for the activation boundary.
+**Neighbours are named in three places only:**
+- `glossary.md`, for shared terms;
+- `SKILL.md`, for the activation boundary;
+- `architecture.md`, for required ports implemented by another module.
+
+Never in `workflow.md`: a list of neighbours there would go stale the day a context is added.
 
 ### Also in workflow.md
 
@@ -431,8 +504,8 @@ context is added. Neighbours are named only in `glossary.md`, for shared terms, 
 
 **How this context proves that something works**, as actually practised in its module.
 
-- **The tiers:** unit, architecture, scenarios and integration, as the module standard defines
-  them. Name the module's real directories and commands, for example
+- **The tiers** the module has, as the module standard defines them. Scenarios are a tier only
+  with the BDD + TDD style. Name the module's real directories and commands, for example
   `pnpm --filter @module/billing test:scenarios`.
 - **What must be tested before a change is done.**
 - **What counts as a regression,** never acceptable to make a suite pass:
@@ -454,15 +527,15 @@ manager.
 
 - **The hard rule:** no file names, function names, layer names or type names. A scenario that
   can't be stated without them is a test, and belongs in `testing.md`.
-- **An index of the `.feature` files.** They already are behaviour language, so `scenarios.md`
-  doesn't repeat them. It gives each one a single sentence: the promise it holds.
+- **With `.feature` files (BDD + TDD):** an index of **every** `.feature` file, each linked, with
+  one sentence: the promise it holds. The feature files already are behaviour language, so
+  `scenarios.md` doesn't repeat them. `/gyos:doctor` checks that no feature file is missing from
+  the index.
+- **Without them:** the promises written here directly, as Given/When/Then with real values.
 - **Who does what:** every promise names the role that acts.
 - **Configuration that gates the behaviour:** a promise that holds only under some configuration
   says which.
 - **Out of scope and known gaps,** so a reader doesn't report a false failure.
-
-With the "TDD only" testing style there are no `.feature` files. The promises are then written
-here directly, as Given/When/Then with real values.
 
 **Threshold:** at least one promise a non-technical reader could check without asking a
 developer.
@@ -508,22 +581,26 @@ live in `AGENTS.md` and are not repeated here.
 
 ### decisions.md
 
-An **Active table** above an **append-only log**:
+An **Active table** above an **append-only log**. Ids, the entry shape and the Confirmation
+syntax are defined once, in `docs/decisions/README.md`.
 
 ```markdown
 # Decisions: billing
 
+Archive: [decisions-archive.md](decisions-archive.md)
+
 ## Active
 
-| Date | Decision |
-| --- | --- |
-| 2026-11-25 | An issued invoice never changes amount; corrections are credit notes |
+| Id | Date | Decision |
+| --- | --- | --- |
+| ADR-0002 | 2026-11-25 | Testing style: BDD + TDD ([ADR](../../../../docs/decisions/0002-testing-style.md)) |
+| billing-D1 | 2026-11-25 | An issued invoice never changes amount; corrections are credit notes |
 
 ---
 
 ## Log
 
-### 2026-11-25: Issued invoices are immutable
+### billing-D1 — Issued invoices are immutable (2026-11-25)
 
 Status: accepted · supersedes: — · superseded by: —
 
@@ -531,22 +608,21 @@ In the context of invoicing, facing corrections after issue, we decided for cred
 against editing the invoice), to achieve an audit trail the accountant can trust, accepting one
 more document type.
 
-Confirmation: scenario "A correction after issue produces a credit note"; invariant C2
+Confirmation: scenario: "A correction after issue produces a credit note"; invariant: C2
 Confidence: high. Revisit when: a jurisdiction allows amended invoices
 ```
 
-- **The Active table** holds one line per decision that still holds. It is the only part of the
-  file that gets edited: when an entry is superseded, its row is removed. A reader asking what
-  holds stops at the table; a reader asking why reads the log.
-- **Log entries** follow `docs/decisions/README.md`, which `/gyos:init` copies from
-  `knowledge/decision-records.md`. A context-level entry needs at least the Y-statement,
-  Confirmation, and supersedes. An entry that weighed real alternatives gets its own ADR in
-  `docs/decisions/`, and the log links to it.
-- **Confirmation** ties a decision to a scenario, a test or an invariant, so that drift fails a
-  check. `/gyos:doctor` checks that every Confirmation names something that exists.
-- **Archiving:** at the ceiling, log entries that are superseded *and* older than about six
-  months move to `decisions-archive.md`, which is never in the load plan. Age alone is not a
-  reason: an old decision that still holds is load-bearing.
+- **The Active table** holds one row per decision that binds the context today: its own entries,
+  and links to the ADRs that bind it (the setup ADRs, junctions it takes part in). An ADR is
+  linked, never copied. A reader asking what holds stops at the table; a reader asking why reads
+  the log or the ADR.
+- **Two edits are allowed after acceptance:** filling in an old entry's "superseded by", and
+  removing its row from the Active table. Everything else is appended.
+- **Archiving:**
+  - **What moves:** at the ceiling, log entries that are superseded *and* older than 180 days move
+    to `decisions-archive.md`, which is never in the load plan.
+  - **The link:** `decisions.md` links the archive at the top once it exists.
+  - **What stays:** age alone is not a reason. An old decision that still holds is load-bearing.
 
 ### todo.md
 
@@ -557,62 +633,82 @@ for the next session to pick it up.
 ### qa-checklist.md
 
 The handoff artifact: what someone else should now check, **organized by role** (the people who
-use the product), not by story. Items are `- [ ]` checkboxes. It references scenarios instead of
-copying them.
+use the product), not by story. Items are `- [ ]` checkboxes. It links scenarios instead of
+copying them. The first Change with a product surface creates it.
 
 ---
 
-## How GYOS fills a new skill
+## How GYOS fills a new skill (GYOS only)
 
 **Never invent.** Every term, invariant, scenario and decision traces back to an answer the user
-gave or confirmed, to code, or to a document. What came out of discovery labelled *inferred* or
-*speculative* goes in only after the user confirms it. Otherwise it stays an open question in
-`docs/context-map.md`.
+gave or confirmed, to code, or to a document.
+- **Unconfirmed items stay open.** Whatever discovery labelled *inferred* or *speculative* goes in
+  only after the user confirms it. Otherwise it stays an open question in `docs/context-map.md`.
+- **Unchecked claims are marked.** Anything written before it could be checked carries a line or
+  cell starting with `Unverified:`. `/gyos:doctor` lists every `Unverified:` marker.
 
 | File | Filled from |
 | --- | --- |
-| `SKILL.md` | The context's purpose, its vocabulary and its boundaries (Bounded Context Canvas) |
-| `glossary.md` | The discovery glossary for this context, with the code names recorded in the language ADR |
+| `SKILL.md` | The context's canvas entry: purpose, vocabulary, boundaries |
+| `glossary.md` | The discovery glossary for this context, with code names following the language ADR |
 | `architecture.md` | The context's invariants and classification from discovery; the module's areas, ports and published language from scaffolding |
-| `workflow.md` | This standard's protocol, specialized with the context's clarify dimensions, the testing style, and its standing risks |
+| `workflow.md` | This standard's protocol, specialized with the context's clarify dimensions, the testing style, its standing risks, and the filing and ceiling tables |
 | `testing.md` | The module's real test commands and tiers |
-| `scenarios.md` | The examples from discovery, as an index of the generated `.feature` files |
-| `development/decisions.md` | The setup decisions that concern this context; empty otherwise, with its Active table |
-| `development/todo.md` | Created empty; filled during work |
+| `scenarios.md` | The examples from discovery, as the generated `.feature` files and their index, or as written promises |
+| `development/decisions.md` | An Active table linking the setup ADRs; the log starts empty |
+| `development/todo.md` | Created empty |
 
-The trace in `architecture.md` is verified once the walking skeleton exists. Until then it is
-marked "unverified: confirm against the code before relying on it".
+**The trace.** The walking skeleton exists for one context, so only that context's trace can be
+checked against running code at first. Every other trace is marked `Unverified:` until its first
+Change. `/gyos:doctor` checks, for every trace, that each path in it exists.
 
 ---
 
 ## Conformance checklist
 
-`/gyos:doctor` checks every item. A skill conforms when:
+`/gyos:doctor` checks every item.
 
+**Files:**
 - [ ] `SKILL.md` records `gyos-standard: domain-skill/1`, and is thin: identity, activation, load plan, quick reference.
-- [ ] The core files exist (`SKILL.md`, `glossary.md`, `architecture.md`, `workflow.md`), and so does `testing.md`.
+- [ ] These exist: `SKILL.md`, `glossary.md`, `architecture.md`, `workflow.md`, `testing.md`, `development/decisions.md`, `development/todo.md`.
+- [ ] `scenarios.md` exists when the module has `.feature` files or the context has a product surface, and indexes every `.feature` file.
 - [ ] Each optional file either has real content or is absent: no stubs.
-- [ ] The `description` names the context, the question shapes, the vocabulary and the boundaries, with the key use first, within 1,536 characters together with `when_to_use`.
-- [ ] Activation by domain is stated as checkable signals: paths, glossary vocabulary, question shapes.
+- [ ] No file is over twice its ceiling; files over their ceiling are reported.
+
+**Activation:**
+- [ ] `description` and `when_to_use` name the context, the question shapes, the top vocabulary and the boundaries, with the key use first, within 1,536 characters together.
+- [ ] Every vocabulary term in the frontmatter appears in `glossary.md`.
+- [ ] No `disable-model-invocation`, no `paths`.
 - [ ] The load plan has the always-loaded glossary, a set per track, and token costs.
-- [ ] `glossary.md` has at least one non-obvious term; every term that exists in code points at where.
-- [ ] `architecture.md` points at `docs/standards/module.md` instead of copying it, states context invariants with their traps, and gives a navigation method with a worked example (verified once code exists).
-- [ ] `workflow.md` routes Inquiry or Change first, puts Inquiry before Change, carries the five mandatory rules and the cross-domain rule, and lists no neighbours.
+
+**Content:**
+- [ ] `glossary.md` has at least one non-obvious term; every term that exists in code links to where.
+- [ ] `architecture.md` links `docs/standards/module.md` instead of copying it, and states context invariants with their traps.
+- [ ] C-numbers are unique and never reused.
+- [ ] Every path in the trace exists.
+- [ ] `workflow.md` routes Inquiry or Change first, puts Inquiry before Change, and carries the five mandatory rules, the cross-domain rule, and the filing and ceiling tables.
+- [ ] Neighbours are named only in `glossary.md`, `SKILL.md` and `architecture.md`.
 - [ ] `scenarios.md`, if present, names no files, functions or types.
-- [ ] `development/decisions.md` has an Active table with no superseded rows, and every Confirmation names something that exists.
-- [ ] No file is far past its ceiling.
 - [ ] No dated decisions in `architecture.md`.
-- [ ] No reference to `${CLAUDE_PLUGIN_ROOT}`; every link resolves inside the repo.
-- [ ] Every claim traces to the user, code or a document; anything unverified says so.
+
+**Decisions:**
+- [ ] `development/decisions.md` has an Active table with ids and no superseded rows.
+- [ ] Every Confirmation resolves.
+- [ ] The archive is linked at the top once it exists.
+
+**Links and claims:**
+- [ ] No reference to `${CLAUDE_PLUGIN_ROOT}`.
+- [ ] Every relative link resolves inside the repo.
+- [ ] Every `Unverified:` marker is listed in the doctor's report.
 
 ---
 
-## Changing this standard
+## Changing this standard (GYOS only)
 
 Changing this file changes every skill generated afterwards. So:
 
-1. Record the change in `docs/plan.md`'s decisions, with its reason, and bump the version
-   (`domain-skill/2`).
+1. Record the change in the plugin's `docs/plan.md` decisions, with its reason, and bump the
+   version (`domain-skill/2`).
 2. Update the templates and the skills that generate or check domain skills in the same change.
 3. Say whether existing skills must be migrated (`/gyos:upgrade`) or may stay as they are.
    Divergence is fine when recorded, and corrosive when accidental.

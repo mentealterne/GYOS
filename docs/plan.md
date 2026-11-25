@@ -176,7 +176,8 @@ my-product/
   docs/
     product-brief.md
     context-map.md          contexts, relationships, junctions
-    decisions/              why: dated ADRs, append-only
+    decisions/              why: dated ADRs, append-only; README.md holds the format
+    standards/              module.md and domain-skill.md, copied from GYOS
   apps/
     api/                    Express host: composes the modules, owns HTTP and the junctions
     web/                    React / Svelte / Vue
@@ -260,3 +261,4 @@ Append-only. A decision that replaces another says which.
 | 2026-11-25 | The interview runs in the user's language. Docs are written in English. The glossary keeps the original business term next to the name used in code |
 | 2026-11-25 | `adopt` (existing codebases) comes after the MVP; the standards are written so it fits later |
 | 2026-11-25 | **Supersedes the esbuild row above.** Modules build with `tsc`, which emits declarations and is what Turborepo recommends for internal packages; the dev loop reads `src` through the `@gyos/source` condition (see `knowledge/packaging-and-build.md`) |
+| 2026-11-25 | Generated domain skills follow `standards/domain-skill.md` (`domain-skill/1`). Unlike the production standard it comes from, `testing.md`, `development/decisions.md` and `development/todo.md` are always present, because every GYOS module ships a test suite and every invocation ends with a `development/` write |
