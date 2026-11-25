@@ -19,8 +19,10 @@
 //   - src/http/routes/<name>.ts and its test, rendered from templates/host-module like the module.
 // Each line goes right above its gyos:* marker. The host is checked before anything is written:
 // a marker missing, or found twice, refuses the whole run. Running it again changes nothing: a
-// line already present is not added twice, a route file already there is kept as it is, and a
-// module that exists is not scaffolded again (with --host only; without it, that is an error).
+// host file that already imports the module ("@module/<name>" in src/modules.ts, ./<name>.ts in
+// src/http/routes/index.ts) gets none of its lines again, even edited by hand since; a route file
+// already there is kept as it is; and a module that exists is not scaffolded again (with --host
+// only; without it, that is an error).
 // No dependencies. Runs with Node's type stripping (Node 24), so erasable syntax only.
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
 import { dirname, join, relative, resolve, sep } from "node:path";
@@ -144,21 +146,39 @@ interface HostPlan {
   kept: string[];
 }
 
-/**
- * The text with `line` inserted right above the line that holds `marker`, at its indentation.
- * The marker must be there exactly once. When the line is already in the file, nothing changes.
- */
-function insertAbove(text: string, marker: string, line: string, file: string): string {
-  const lines = text.split("\n");
+/** The index of the line that holds `marker`, which must be there exactly once. */
+function markerIndex(lines: readonly string[], marker: string, file: string): number {
   const at = lines.flatMap((candidate, index) => (candidate.trim() === marker ? [index] : []));
   const [index] = at;
   if (at.length !== 1 || index === undefined) {
     throw new Error(`${file}: expected the marker "${marker}" once, found it ${at.length} times`);
   }
-  if (lines.some((candidate) => candidate.trim() === line)) return text;
-  const indent = /^\s*/.exec(lines[index] ?? "")?.[0] ?? "";
-  lines.splice(index, 0, `${indent}${line}`);
+  return index;
+}
+
+/**
+ * The text with each line inserted right above the line that holds its marker, at its indentation.
+ * Every marker must be there exactly once. When `wired` says the module is already in the file,
+ * nothing is inserted: its lines may have been edited by hand since, and comparing them would add
+ * the module a second time.
+ */
+function insertAbove(text: string, insertions: readonly [marker: string, line: string][], file: string, wired: boolean): string {
+  const lines = text.split("\n");
+  for (const [marker] of insertions) markerIndex(lines, marker, file);
+  if (wired) return text;
+  for (const [marker, line] of insertions) {
+    if (lines.some((candidate) => candidate.trim() === line)) continue;
+    const index = markerIndex(lines, marker, file);
+    const indent = /^\s*/.exec(lines[index] ?? "")?.[0] ?? "";
+    lines.splice(index, 0, `${indent}${line}`);
+  }
   return lines.join("\n");
+}
+
+/** Whether `text` has an import (or export) from `specifier`, exactly. */
+function importsFrom(text: string, specifier: string): boolean {
+  const quoted = specifier.replace(/[.*+?^${}()|[\]\\/]/g, "\\$&");
+  return new RegExp(`\\bfrom\\s*["']${quoted}["']`).test(text);
 }
 
 function planHost(workspace: string, hostDir: string, names: ModuleNames): HostPlan {
@@ -194,20 +214,33 @@ function planHost(workspace: string, hostDir: string, names: ModuleNames): HostP
   );
   keep(HOST_FILES.packageJson, packageText, `${JSON.stringify(packageJson, null, 2)}\n`);
 
-  // src/modules.ts: built once, with the host's pool, logger and clock.
+  // src/modules.ts: built once, with the host's pool, logger and clock. A file that already
+  // imports the module has it: none of its lines is added again.
   const modulesText = read(HOST_FILES.modules);
-  let modules = modulesText;
-  modules = insertAbove(modules, MARKERS.modulesImports, `import { create${pascal}Module, type ${pascal}Module } from "@module/${kebab}";`, where(HOST_FILES.modules));
-  modules = insertAbove(modules, MARKERS.modulesType, `${camel}: ${pascal}Module;`, where(HOST_FILES.modules));
-  modules = insertAbove(modules, MARKERS.modulesBuild, `const ${camel} = create${pascal}Module({ db: pool, logger, clock });`, where(HOST_FILES.modules));
-  modules = insertAbove(modules, MARKERS.modulesReturn, `${camel},`, where(HOST_FILES.modules));
+  const modules = insertAbove(
+    modulesText,
+    [
+      [MARKERS.modulesImports, `import { create${pascal}Module, type ${pascal}Module } from "@module/${kebab}";`],
+      [MARKERS.modulesType, `${camel}: ${pascal}Module;`],
+      [MARKERS.modulesBuild, `const ${camel} = create${pascal}Module({ db: pool, logger, clock });`],
+      [MARKERS.modulesReturn, `${camel},`],
+    ],
+    where(HOST_FILES.modules),
+    importsFrom(modulesText, `@module/${kebab}`),
+  );
   keep(HOST_FILES.modules, modulesText, modules);
 
-  // src/http/routes/index.ts: the module's routes at /<name>.
+  // src/http/routes/index.ts: the module's routes at /<name>, unless it imports them already.
   const routesText = read(HOST_FILES.routes);
-  let routes = routesText;
-  routes = insertAbove(routes, MARKERS.routesImports, `import { create${pascal}Routes } from "./${kebab}.ts";`, where(HOST_FILES.routes));
-  routes = insertAbove(routes, MARKERS.routesMount, `router.use("/${kebab}", create${pascal}Routes(modules.${camel}));`, where(HOST_FILES.routes));
+  const routes = insertAbove(
+    routesText,
+    [
+      [MARKERS.routesImports, `import { create${pascal}Routes } from "./${kebab}.ts";`],
+      [MARKERS.routesMount, `router.use("/${kebab}", create${pascal}Routes(modules.${camel}));`],
+    ],
+    where(HOST_FILES.routes),
+    importsFrom(routesText, `./${kebab}.ts`),
+  );
   keep(HOST_FILES.routes, routesText, routes);
 
   // The route file and its test, rendered like the module. One that exists is the team's now.

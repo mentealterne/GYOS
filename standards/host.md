@@ -175,7 +175,10 @@ the host: the dependency in `package.json`, a line above each marker in `modules
 (`// gyos:modules:imports`, `:type`, `:build`, `:return`) and in `routes/index.ts`
 (`// gyos:routes:imports`, `:mount`), and `routes/<name>.ts` with its test, rendered from
 `templates/host-module`. The markers stay in the files. The script refuses to touch a host whose
-markers are missing or doubled, and a second run changes nothing (verified).
+markers are missing or doubled, and a second run changes nothing (verified), even after the
+module's lines were edited by hand: a file that already imports the module (`"@module/<name>"` in
+`modules.ts`, `./<name>.ts` in `routes/index.ts`) gets none of its lines again (verified by
+`scripts/new-module.test.ts`).
 
 ---
 
