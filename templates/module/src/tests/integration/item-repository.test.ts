@@ -19,7 +19,7 @@ beforeAll(async () => {
   await createSampleModule({ db: pool }).ready();
 });
 afterAll(async () => {
-  await pool.end();
+  await pool?.end(); // undefined when newPool() refused the database
 });
 
 // The same promises the in-memory twin keeps in the unit tier.

@@ -19,7 +19,7 @@ beforeAll(() => {
   admin = newPool();
 });
 afterAll(async () => {
-  await admin.end();
+  await admin?.end(); // undefined when newPool() refused the database
 });
 beforeEach(async () => {
   await dropSchema(admin);
@@ -58,22 +58,18 @@ describe("ready()", () => {
   });
 
   it("gives up waiting for the migration lock after migrationLockTimeoutMs, and says why", async () => {
-    // Another process holds the workspace's migration lock and doesn't let go.
+    // Another process holds the workspace's migration lock and doesn't let go. (Retrying after a
+    // failure is tested in the unit tier: here, other modules' tests may hold the shared lock.)
     const holder = await admin.connect();
     try {
       await holder.query("select pg_advisory_lock($1)", [MIGRATION_LOCK_KEY]);
-      const module = createSampleModule({ db: admin, migrationLockTimeoutMs: 200 });
       const started = performance.now();
-      const run = module.ready();
+      const run = createSampleModule({ db: admin, migrationLockTimeoutMs: 200 }).ready();
       await expect(run).rejects.toThrow("Waited 200 ms for the migration lock");
       await expect(run).rejects.toMatchObject({ cause: { code: "55P03" } });
       expect(performance.now() - started).toBeLessThan(5_000);
-
-      await holder.query("select pg_advisory_unlock($1)", [MIGRATION_LOCK_KEY]);
-      await module.ready();
-      expect(await appliedMigrations()).toHaveLength(journal.entries.length);
     } finally {
-      holder.release(true);
+      holder.release(true); // ends the session, and the lock with it
     }
   });
 
