@@ -683,11 +683,14 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
   integration tier on Postgres. A promise added to a port is added there, so the scenarios can't
   pass on a twin that behaves differently from production.
 - **The architecture tests check themselves.** Next to every rule there is a synthetic import
-  that breaks it, and the test asserts that the rule reports it. A check that cannot fail proves
-  nothing.
-- **[version] The architecture tests read imports with `ts.preProcessFile`,** from the
-  TypeScript 6 API that the `typescript` alias provides (see Packaging and build). TypeScript 7.0
-  ships no programmatic API; one is expected in 7.1. "Types only" is checked by compiling the file
+  that breaks it, and the test asserts that the rule reports it: a check that cannot fail proves
+  nothing. Next to every allowance there is one that uses it, and the test asserts that nothing is
+  reported: a rule that refuses what the standard prescribes is wrong too.
+- **[version] The architecture tests read imports with the TypeScript 6 API** that the
+  `typescript` alias provides (see Packaging and build). TypeScript 7.0 ships no programmatic API;
+  one is expected in 7.1. A module's tests walk the syntax tree (`ts.createSourceFile`), because
+  the layer rules depend on whether an import is type-only, which `ts.preProcessFile` doesn't
+  report; `tooling/architecture` only needs the specifiers, and uses `ts.preProcessFile`. "Types only" is checked by compiling the file
   with `ts.transpileModule`: anything but `export {};` in the output is runtime code.
 - **Tests that span the workspace** run in `tooling/architecture` and cover what no single module
   can check: the module dependency graph (declared, through entry points, no cycles), one

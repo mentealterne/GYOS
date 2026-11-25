@@ -104,7 +104,8 @@ file. It does not belong in the typecheck config either, which also covers `feat
 API; one is expected in 7.1. Anything that calls the compiler API needs TypeScript 6 installed
 next to it, under the npm alias the announcement documents
 ([Announcing TypeScript 7.0](https://devblogs.microsoft.com/typescript/announcing-typescript-7-0/)):
-- GYOS's architecture tests, which use `ts.preProcessFile`;
+- GYOS's architecture tests, which use `ts.createSourceFile`, `ts.preProcessFile` and
+  `ts.transpileModule`;
 - typescript-eslint, whose parser needs the API even for untyped rules.
 
 How lint gets TypeScript 6 is **not settled yet**; see the module standard.
