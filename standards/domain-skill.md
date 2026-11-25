@@ -5,12 +5,14 @@ The shape of every domain skill GYOS generates, and the rules each one follows. 
 
 **Version: `domain-skill/1`.** Every generated `SKILL.md` records it in its frontmatter.
 
+<!-- gyos-only:start -->
 > **GYOS only.** The standard is taken from the one behind Knowledge-Driven Programming in
 > production, adapted to skills GYOS generates for a new product. The reasons are in the plugin's
 > `knowledge/knowledge-driven-programming.md` and `knowledge/decision-records.md`.
 > `/gyos:init` copies this file into the user's repo as `docs/standards/domain-skill.md`, and
 > drops the blocks and sections marked **GYOS only**, because they point at files that exist
 > only in the plugin.
+<!-- gyos-only:end -->
 
 ---
 
@@ -30,9 +32,13 @@ The shape of every domain skill GYOS generates, and the rules each one follows. 
 12. [state-of-the-code.md](#state-of-the-codemd)
 13. [guardrails.md](#guardrailsmd)
 14. [development/](#development)
+<!-- gyos-only:start -->
 15. [How GYOS fills a new skill (GYOS only)](#how-gyos-fills-a-new-skill-gyos-only)
+<!-- gyos-only:end -->
 16. [Conformance checklist](#conformance-checklist)
+<!-- gyos-only:start -->
 17. [Changing this standard (GYOS only)](#changing-this-standard-gyos-only)
+<!-- gyos-only:end -->
 
 ---
 
@@ -636,6 +642,7 @@ The handoff artifact: what someone else should now check, **organized by role** 
 use the product), not by story. Items are `- [ ]` checkboxes. It links scenarios instead of
 copying them. The first Change with a product surface creates it.
 
+<!-- gyos-only:start -->
 ---
 
 ## How GYOS fills a new skill (GYOS only)
@@ -662,6 +669,7 @@ gave or confirmed, to code, or to a document.
 checked against running code at first. Every other trace is marked `Unverified:` until its first
 Change. `/gyos:doctor` checks, for every trace, that each path in it exists.
 
+<!-- gyos-only:end -->
 ---
 
 ## Conformance checklist
@@ -701,6 +709,7 @@ Change. `/gyos:doctor` checks, for every trace, that each path in it exists.
 - [ ] Every relative link resolves inside the repo.
 - [ ] Every `Unverified:` marker is listed in the doctor's report.
 
+<!-- gyos-only:start -->
 ---
 
 ## Changing this standard (GYOS only)
@@ -712,3 +721,5 @@ Changing this file changes every skill generated afterwards. So:
 2. Update the templates and the skills that generate or check domain skills in the same change.
 3. Say whether existing skills must be migrated (`/gyos:upgrade`) or may stay as they are.
    Divergence is fine when recorded, and corrosive when accidental.
+
+<!-- gyos-only:end -->
