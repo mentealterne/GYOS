@@ -90,7 +90,8 @@ Confirmation: scenario: "Registering twice with different casing is refused"; in
 Confidence: medium. Revisit when: <the change that would reopen it>
 ```
 
-**The minimum.** An ADR carries every line above. A context log entry needs at least the heading,
+**The minimum.** An ADR carries every part above; Context, Options considered and Consequences
+may be `Name:` lines or `## Name` sections. A context log entry needs at least the heading,
 the status line, the Y-statement and Confirmation; the rest when it has something to say.
 
 **Invariant ids.** `C1`, `C2`, … are a context's own invariants, listed in its skill's
@@ -104,7 +105,7 @@ syntax, separated by `;`:
 
 | Form | Matches |
 | --- | --- |
-| `scenario: "<name>"` | A `Scenario:`, `Scenario Outline:` or `Example:` line with that name in the context's `.feature` files |
+| `scenario: "<name>"` | A `Scenario:`, `Scenario Outline:` or `Example:` line with that name in the context's `.feature` files; for an ADR, in any `.feature` file of the product |
 | `test: <path> "<name>"` | A test with that name in that file |
 | `invariant: C<n>`, `invariant: <context>/C<n>`, `invariant: M<n>` | An invariant in the context's `architecture.md`, another context's, or the module standard |
 
