@@ -9,6 +9,7 @@ packages:
 # A generated product commits its own pnpm-lock.yaml, which also pins what these depend on.
 catalog:
   "@cucumber/cucumber": 13.3.0
+  "@types/express": 5.0.6
   "@types/node": 24.19.4
   "@types/pg": 8.23.1
   # TypeScript 7 ships no programmatic API. As the TypeScript 7.0 announcement recommends,
@@ -17,7 +18,10 @@ catalog:
   "@typescript/native": npm:typescript@7.0.2
   drizzle-kit: 0.31.11
   drizzle-orm: 0.45.4
+  express: 5.3.0
   pg: 8.23.1
+  pino: 10.4.0
+  pino-pretty: 13.2.0
   tsx: 4.23.15
   turbo: 2.11.13
   typescript: npm:@typescript/typescript6@6.0.2
