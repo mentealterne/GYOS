@@ -59,7 +59,8 @@ modules/<name>/
     ├── repositories.ts     builds every adapter on its connection, and the transaction seam
     ├── migrations.ts       the migrations folder, resolved the same from src/ and dist/
     ├── module-controllers/ the operations hosts call: parse input, delegate
-    │   └── index.ts        builds the use cases and controllers on a set of repositories
+    │   ├── index.ts        builds the use cases and controllers on a set of repositories
+    │   └── input-error.ts  is<Name>InputError(), exported from the root entry
     ├── <area>/
     │   ├── domain/         pure rules
     │   ├── services/       use cases: load through ports, apply rules, write through ports
@@ -298,7 +299,10 @@ through the config.
 - **Expected business refusals** are typed error classes with a `code` union, for example
   `InvoiceAccessError` with `code: "not-found" | "already-paid"`. Services throw them, and the root
   entry exports them.
-- **Invalid input** is the `ZodError` thrown by the controller's parse.
+- **Invalid input** is the `ZodError` thrown by the controller's parse. The root entry exports
+  `is<Name>InputError(error)` (`module-controllers/input-error.ts`), an `instanceof` check against
+  the module's own zod, so a host maps invalid input without importing zod or knowing the module
+  uses it. The smoke host in `scripts/verify-templates.ts` calls it from source and from the build.
 - **The host maps them** to HTTP statuses, job outcomes or CLI exit codes. The module never
   produces an HTTP error.
 - **Anything else is a bug** and is thrown as a plain error.

@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import { Given, Then, When } from "@cucumber/cucumber";
-import { ZodError } from "zod";
 import { SampleItemError } from "../../src/items/domain/errors.ts";
+import { isSampleInputError } from "../../src/module-controllers/input-error.ts";
 import type { SampleWorld } from "../support/world.ts";
 
 async function itemIdOf(world: SampleWorld, tenant: string, name: string): Promise<string> {
@@ -46,7 +46,7 @@ Then("{tenant} is told the name is already taken", function (this: SampleWorld, 
 });
 
 Then("{tenant} is told the name is invalid", function (this: SampleWorld, _tenant: string) {
-  assert.ok(this.lastError instanceof ZodError, `expected invalid input, got ${String(this.lastError)}`);
+  assert.ok(isSampleInputError(this.lastError), `expected invalid input, got ${String(this.lastError)}`);
 });
 
 Then("{tenant} has {int} item(s)", async function (this: SampleWorld, tenant: string, count: number) {

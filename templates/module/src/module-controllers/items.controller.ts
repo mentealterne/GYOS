@@ -1,5 +1,6 @@
 // The operations a host calls on items: parse the raw input, then call one use case.
-// Invalid input throws a ZodError; the host maps it, like every other error, to its transport.
+// Invalid input throws a ZodError, which isSampleInputError() recognises; the host maps it, like
+// every other error, to its transport.
 import {
   createItemInputSchema,
   itemIdSchema,

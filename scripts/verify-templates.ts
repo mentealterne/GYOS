@@ -190,7 +190,7 @@ function writeSmokeHost(): void {
 // awaits ready() for all of them at once (as a fresh deploy would), then calls them.
 import { randomUUID } from "node:crypto";
 import pg from "pg";
-import { BillingItemError, createBillingModule } from "@module/billing";
+import { BillingItemError, createBillingModule, isBillingInputError } from "@module/billing";
 import type { BillingLogger } from "@module/billing/contracts";
 import { ITEM_NAME_MAX_LENGTH } from "@module/billing/items";
 import { createSchedulingModule } from "@module/scheduling";
@@ -220,6 +220,11 @@ try {
   const refused = await billing.items.create(tenant, { name: "Blue widget" }).catch((error: unknown) => error);
   if (!(refused instanceof BillingItemError) || refused.code !== "duplicate-name") {
     throw new Error(\`expected a duplicate-name refusal, got \${String(refused)}\`);
+  }
+  // The host maps invalid input without importing zod.
+  const invalid = await billing.items.create(tenant, { name: "" }).catch((error: unknown) => error);
+  if (!isBillingInputError(invalid) || isBillingInputError(refused)) {
+    throw new Error(\`expected only the blank name to be invalid input, got \${String(invalid)}\`);
   }
   const [billingItems, schedulingItems] = await Promise.all([billing.items.list(tenant), scheduling.items.list(tenant)]);
   if (billingItems.length !== 1 || schedulingItems.length !== 0) {

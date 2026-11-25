@@ -9,6 +9,7 @@ import { createSampleRepositories } from "./repositories.ts";
 export { SampleConfigError } from "./config/sample-config.ts";
 export type { SampleModuleConfig } from "./config/sample-config.ts";
 export { SampleItemError } from "./items/domain/errors.ts";
+export { isSampleInputError } from "./module-controllers/input-error.ts";
 
 export interface SampleModule extends SampleControllers {
   /**
