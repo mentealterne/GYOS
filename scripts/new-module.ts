@@ -59,6 +59,11 @@ const RESERVED_NAMES = new Set(["public", "drizzle"]);
 /** Folders of src/ that an area can't be called. */
 const TAKEN_FOLDERS = new Set(["db", "config", "module-controllers", "tests"]);
 /**
+ * The area src/tests/unit/architecture/layers.test.ts makes up, to check that one area doesn't
+ * reach into another's: a module whose own area had that name would fail those tests.
+ */
+const LAYER_TESTS_AREA = "other-area";
+/**
  * Names a host can't give a module's variable: JavaScript's reserved words, and the names
  * src/modules.ts and src/http/routes/index.ts already use.
  */
@@ -123,6 +128,9 @@ function validateArea(names: TemplateNames, templates: readonly TemplateFile[]):
   if (area.kebab === TEMPLATE_AREA && entity.kebab === TEMPLATE_ENTITY) return [];
   if (area.camel === entity.camel) problems.push(`--area and --entity must differ: both are "${area.kebab}"`);
   if (TAKEN_FOLDERS.has(area.kebab)) problems.push(`--area "${area.kebab}" is a folder src/ already has`);
+  if (area.kebab === LAYER_TESTS_AREA) {
+    problems.push(`--area "${area.kebab}" is the second area the layer tests make up: pick another name`);
+  }
   const taken = identifiersIn(templates);
   for (const [flag, forms] of [["--area", area], ["--entity", entity]] as const) {
     const clashes = [forms.camel, forms.pascal].filter((form) => taken.has(form));

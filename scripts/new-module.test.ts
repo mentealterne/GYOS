@@ -75,3 +75,11 @@ describe("new-module.ts --host", () => {
     assert.match(again.output, /expected the marker "\/\/ gyos:modules:type" once, found it 0 times/);
   });
 });
+
+describe("new-module.ts: names it refuses", () => {
+  it("the area the layer tests make up", () => {
+    const refused = scaffold("sales", "--area", "other-area", "--entity", "other-thing");
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.output, /the second area the layer tests make up/);
+  });
+});

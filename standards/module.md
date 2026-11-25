@@ -99,13 +99,15 @@ of the template's example area, in one pass with the module's name:
 
 `scripts/template-names.ts` holds the rules and says how each place is recognised. A name that
 would clash with one the template already uses (`tenant`, `name`, `Error`, a reserved word) is
-refused, and so are two files that would land on one path.
+refused, and so are two files that would land on one path, and the area `other-area`, which the
+layer tests make up as a second area.
 
 **The migration is renamed as text, not regenerated.** drizzle-kit is not installed when the
 scaffolder runs, and the module's name is already renamed in the same files. The renamed
 `0000_init` passes `drizzle-kit check`, and `db:generate` finds nothing to do (verified on every
-run: `scripts/verify-templates.ts` scaffolds `case-management` with `treatment-plans`, and checks
-that no `item` is left in it or in its routes).
+run: `scripts/verify-templates.ts` scaffolds `case-management` with `treatment-plans` and `sales`
+with `orders`, runs every test of both, and checks that no `item` is left in them or in their
+routes).
 
 **The area is still an example.** What it holds (a name unique within a tenant, a rename) is
 made the module's own or replaced, and before the first deploy its migration is regenerated

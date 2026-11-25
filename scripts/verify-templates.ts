@@ -3,8 +3,9 @@
 //   DATABASE_URL=postgres://user@localhost:5432/postgres node scripts/verify-templates.ts [--keep] [--no-db]
 //
 // In a temp directory it copies templates/workspace, adds tooling/architecture and the host
-// (templates/apps/api), scaffolds two modules into both with scripts/new-module.ts --host (the
-// second with its example area renamed, --area treatment-plans --entity treatment-plan), installs,
+// (templates/apps/api), scaffolds three modules into both with scripts/new-module.ts --host (the
+// second and third with their example area renamed: --area treatment-plans --entity
+// treatment-plan, and --area orders --entity order), installs,
 // and runs typecheck, build, the unit and architecture tests, the scenarios, Turborepo's cache
 // invalidation (a change outside a package must not replay a cached pass), a consumer of the
 // modules' build, drizzle-kit check and generate (which must find nothing to do), the host from
@@ -26,13 +27,15 @@ import { fileURLToPath } from "node:url";
 const REPO = fileURLToPath(new URL("../", import.meta.url));
 // The second name has two words, so every run re-checks what the standard claims for them: a
 // quoted schema ("case-management"), PascalCase and UPPER_SNAKE identifiers, a camelCase field
-// in the host.
-const MODULES = ["billing", "case-management"] as const;
+// in the host. The third names its area like a fixture of the template's tests once did.
+const MODULES = ["billing", "case-management", "sales"] as const;
 /** Where the host is, in the workspace: what /gyos:init scaffolds, and what --host names. */
 const HOST = "apps/api";
 /**
  * Each module's example area. The first keeps the template's; the second is renamed, with two
- * words, so every run re-checks every form: folders, identifiers, the table, the migration.
+ * words, so every run re-checks every form: folders, identifiers, the table, the migration. The
+ * third is "orders", the fake second area the layer tests used to make up: a module whose own
+ * area has that name failed them.
  * `path` is where its routes are, under /<module>/; `list` is the key of the list they answer.
  */
 const AREAS: Record<(typeof MODULES)[number], { flags: string[]; path: string; list: string }> = {
@@ -42,6 +45,7 @@ const AREAS: Record<(typeof MODULES)[number], { flags: string[]; path: string; l
     path: "treatment-plans",
     list: "treatmentPlans",
   },
+  sales: { flags: ["--area", "orders", "--entity", "order"], path: "orders", list: "orders" },
 };
 
 const flags = new Set(process.argv.slice(2));
@@ -283,9 +287,10 @@ const hasLength = (body: unknown, key: string, length: number): string | undefin
 
 /** The requests made to the running host, in order. */
 function smokeChecks(): Check[] {
-  const [first, second] = MODULES;
+  const [first, second, third] = MODULES;
   const firstItems = `/${first}/${AREAS[first].path}`;
   const secondItems = `/${second}/${AREAS[second].path}`;
+  const thirdItems = `/${third}/${AREAS[third].path}`;
   const name = "Blue widget";
   return [
     { name: "liveness", method: "GET", path: "/health", status: 200 },
@@ -326,6 +331,7 @@ function smokeChecks(): Check[] {
       expect: (body) => hasLength(body, AREAS[second].list, 0),
     },
     { name: "create in the renamed area", method: "POST", path: secondItems, json: { name }, tenant: true, status: 201 },
+    { name: "create an order", method: "POST", path: thirdItems, json: { name }, tenant: true, status: 201 },
     {
       name: "list the renamed area",
       method: "GET",

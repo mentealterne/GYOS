@@ -88,7 +88,7 @@ const violations: Case[] = [
   {
     breaks: "areas don't share domain code directly",
     path: "items/domain/bad.ts",
-    text: `import type { Order } from "../../orders/domain/order.ts";`,
+    text: `import type { OtherThing } from "../../other-area/domain/other-thing.ts";`,
     rule: "domain",
   },
   {
@@ -124,7 +124,7 @@ const violations: Case[] = [
   {
     breaks: "a service doesn't import another area's use cases",
     path: "items/services/bad.ts",
-    text: `import { createOrderService } from "../../orders/services/order-service.ts";`,
+    text: `import { createOtherThingService } from "../../other-area/services/other-thing-service.ts";`,
     rule: "services",
   },
   {
@@ -159,19 +159,19 @@ const violations: Case[] = [
   },
   {
     breaks: "areas never use each other's adapters",
-    path: "orders/adapters/order-store.postgres.ts",
+    path: "other-area/adapters/other-thing-store.postgres.ts",
     text: `import { createPostgresItemRepository } from "../../items/adapters/item-repository.postgres.ts";`,
     rule: "adapters",
   },
   {
     breaks: "an adapter implements its own area's ports, not another's",
-    path: "orders/adapters/order-store.postgres.ts",
+    path: "other-area/adapters/other-thing-store.postgres.ts",
     text: `import type { ItemRepository } from "../../items/ports.ts";`,
     rule: "adapters",
   },
   {
     breaks: "an adapter maps to its own area's domain, not another's",
-    path: "orders/adapters/order-store.postgres.ts",
+    path: "other-area/adapters/other-thing-store.postgres.ts",
     text: `import type { Item } from "../../items/domain/item.ts";`,
     rule: "adapters",
   },
