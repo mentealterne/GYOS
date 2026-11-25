@@ -23,6 +23,20 @@ async function slowServer() {
   return { server, url: `http://127.0.0.1:${portOf(server)}/slow`, answer, inFlight };
 }
 
+describe("listen()", () => {
+  it("sets the keep-alive and headers timeouts it is given", async () => {
+    const server = await listen(express(), 0, "127.0.0.1", { keepAliveTimeoutMs: 65_000, headersTimeoutMs: 66_000 });
+    try {
+      expect({ keepAlive: server.keepAliveTimeout, headers: server.headersTimeout }).toEqual({
+        keepAlive: 65_000,
+        headers: 66_000,
+      });
+    } finally {
+      await close(server, 1_000);
+    }
+  });
+});
+
 describe("close()", () => {
   it("lets a request in flight finish, and refuses new connections", async () => {
     const { server, url, answer, inFlight } = await slowServer();

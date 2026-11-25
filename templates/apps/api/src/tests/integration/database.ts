@@ -4,15 +4,19 @@
 // the CREATEDB privilege, which the Postgres of docker-compose.yml and of CI have.
 import pg from "pg";
 
-/** The name of a database the integration tests may wipe. */
-export const THROWAWAY_DATABASE = /test|verify/i;
+/**
+ * The name of a database the integration tests may wipe: "test" or "verify" as a word of its own,
+ * at an end or set off by "_" or "-" (product_test, test-orders, gyos_verify_1), in any case. Not
+ * a word inside another: latest, contest and testing are refused.
+ */
+export const THROWAWAY_DATABASE = /(^|[_-])(test|verify)([_-]|$)/i;
 
 /** TEST_DATABASE_URL, once its database name says the tests may wipe it. */
 export function testDatabaseUrl(env: Record<string, string | undefined> = process.env): URL {
   const value = env.TEST_DATABASE_URL;
   if (value === undefined || value === "") {
     throw new Error(
-      'TEST_DATABASE_URL is not set: the integration tests need a throwaway Postgres database, named with "test" or "verify".',
+      'TEST_DATABASE_URL is not set: the integration tests need a throwaway Postgres database, with "test" or "verify" as a word of its name, such as product_test.',
     );
   }
   let url: URL;
@@ -25,7 +29,8 @@ export function testDatabaseUrl(env: Record<string, string | undefined> = proces
   if (!THROWAWAY_DATABASE.test(name)) {
     throw new Error(
       `TEST_DATABASE_URL points at the database "${name}". The integration tests create and drop ` +
-        `databases next to it, so they only run on a database whose name contains "test" or "verify".`,
+        `databases next to it, so they only run on a database whose name has "test" or "verify" ` +
+        `as a word of its own, set off by "_" or "-": product_test, test-orders, gyos_verify_1.`,
     );
   }
   return url;

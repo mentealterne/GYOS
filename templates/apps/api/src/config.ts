@@ -25,6 +25,25 @@ export interface Config {
   logLevel: LogLevel;
   /** SHUTDOWN_TIMEOUT_MS: how long requests in flight get to finish at shutdown. Defaults to 10 000. */
   shutdownTimeoutMs: number;
+  /**
+   * SHUTDOWN_DELAY_MS: how long the server keeps serving after SIGTERM or SIGINT, with /ready at
+   * 503, before it stops accepting connections, so load balancers stop routing to it first.
+   * Defaults to 0.
+   */
+  shutdownDelayMs: number;
+  /**
+   * KEEP_ALIVE_TIMEOUT_MS: how long an idle keep-alive connection stays open. Above the idle
+   * timeout of the load balancer in front (60 s on an AWS Application Load Balancer). Defaults to
+   * 65 000.
+   */
+  keepAliveTimeoutMs: number;
+  /** HEADERS_TIMEOUT_MS: how long a request's headers may take. Above KEEP_ALIVE_TIMEOUT_MS. Defaults to 66 000. */
+  headersTimeoutMs: number;
+  /**
+   * TENANT_FROM_HEADER: whether the tenant may come from the x-tenant-id header, the development
+   * placeholder in http/tenant.ts. Not authentication. Defaults to true, except in production.
+   */
+  tenantFromHeader: boolean;
 }
 
 export class ConfigError extends Error {
@@ -55,6 +74,11 @@ const environmentSchema = z.object({
   DATABASE_POOL_MAX: wholeNumber("a whole number above 0", 1, 10_000).default(10),
   LOG_LEVEL: z.enum(LOG_LEVELS, { error: `expected one of ${LOG_LEVELS.join(", ")}` }).default("info"),
   SHUTDOWN_TIMEOUT_MS: wholeNumber("a whole number of milliseconds above 0", 1, 3_600_000).default(10_000),
+  SHUTDOWN_DELAY_MS: wholeNumber("a whole number of milliseconds, 0 or more", 0, 3_600_000).default(0),
+  // Node's request timeout, 300 s by default, bounds the headers timeout.
+  KEEP_ALIVE_TIMEOUT_MS: wholeNumber("a whole number of milliseconds, 1 to 299999", 1, 299_999).default(65_000),
+  HEADERS_TIMEOUT_MS: wholeNumber("a whole number of milliseconds, 2 to 300000", 2, 300_000).default(66_000),
+  TENANT_FROM_HEADER: z.enum(["true", "false"], { error: "expected true or false" }).optional(),
 });
 
 /**
@@ -68,6 +92,11 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     throw new ConfigError(result.error.issues.map((issue) => `${issue.path.join(".")}: ${issue.message}`));
   }
   const values = result.data;
+  // Each value is valid on its own; this one depends on another. A headers timeout at or below
+  // the keep-alive timeout can close a keep-alive connection early (nodejs/node#27363).
+  if (values.HEADERS_TIMEOUT_MS <= values.KEEP_ALIVE_TIMEOUT_MS) {
+    throw new ConfigError(["HEADERS_TIMEOUT_MS: expected more than KEEP_ALIVE_TIMEOUT_MS"]);
+  }
   return {
     environment: values.NODE_ENV,
     host: values.HOST,
@@ -76,5 +105,10 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     databasePoolMax: values.DATABASE_POOL_MAX,
     logLevel: values.LOG_LEVEL,
     shutdownTimeoutMs: values.SHUTDOWN_TIMEOUT_MS,
+    shutdownDelayMs: values.SHUTDOWN_DELAY_MS,
+    keepAliveTimeoutMs: values.KEEP_ALIVE_TIMEOUT_MS,
+    headersTimeoutMs: values.HEADERS_TIMEOUT_MS,
+    tenantFromHeader:
+      values.TENANT_FROM_HEADER === undefined ? values.NODE_ENV !== "production" : values.TENANT_FROM_HEADER === "true",
   };
 }

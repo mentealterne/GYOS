@@ -27,6 +27,16 @@ function testRoutes(): Router {
   router.get("/thrown-string", () => {
     throw "not an Error";
   });
+  router.get("/things/:thingId", (request, response) => {
+    response.json({ thingId: request.params.thingId });
+  });
+  router.get("/forbidden", () => {
+    throw Object.assign(new Error("tenant globex belongs to someone else"), { status: 403 });
+  });
+  router.get("/half-sent", (_request, response) => {
+    response.status(200).type("json").write('{"items": [');
+    throw new Error("the cursor broke after the first page");
+  });
   return router;
 }
 
@@ -85,6 +95,27 @@ describe("requests the host refuses", () => {
     expect(response).toMatchObject({ status: 200, body: { tenantId: "acme", body: { name: "Blue" } } });
   });
 
+  it("a path parameter with malformed percent-encoding: 400, with a fixed message", async () => {
+    app = await startApp({ routes: testRoutes() });
+    const response = await app.request("GET", "/things/%E0%A4%A");
+    expect(response).toMatchObject({
+      status: 400,
+      body: { error: { code: "bad-request", message: "The request is not valid." } },
+    });
+    expect(response.text).not.toMatch(/%E0|decode/);
+    expect(app.logs.filter((entry) => entry.level === "error")).toEqual([]);
+  });
+
+  it("any error with a 4xx status: that status, and its message only when it says it may be shown", async () => {
+    app = await startApp({ routes: testRoutes() });
+    const response = await app.request("GET", "/forbidden");
+    expect(response).toMatchObject({
+      status: 403,
+      body: { error: { code: "bad-request", message: "The request is not valid." } },
+    });
+    expect(response.text).not.toContain("globex");
+  });
+
   it("an HttpError: its status, code and message", async () => {
     app = await startApp({ routes: testRoutes() });
     expect(await app.request("GET", "/teapot")).toMatchObject({
@@ -115,6 +146,22 @@ describe("a bug", () => {
         message: "connect ECONNREFUSED 10.0.0.7:5432 as admin",
         error: expect.any(Error),
         fields: { errorId: id, method: "GET", path: "/bug" },
+      }),
+    );
+  });
+
+  it("is logged even when the response has started, and the response is cut short", async () => {
+    app = await startApp({ routes: testRoutes() });
+    const text = await app.request("GET", "/half-sent").then(
+      (response) => response.text,
+      () => "(connection cut)",
+    );
+    expect(text).not.toMatch(/\]\s*\}$/);
+    expect(app.logs).toContainEqual(
+      expect.objectContaining({
+        level: "error",
+        message: "the cursor broke after the first page",
+        fields: expect.objectContaining({ method: "GET", path: "/half-sent" }),
       }),
     );
   });

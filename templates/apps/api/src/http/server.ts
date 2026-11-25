@@ -3,9 +3,28 @@ import { createServer, type Server } from "node:http";
 import type { AddressInfo } from "node:net";
 import type { Express } from "express";
 
-/** Listens on `host:port`; resolves once listening, rejects when it can't (a port in use). */
-export function listen(app: Express, port: number, host: string): Promise<Server> {
+export interface ServerTimeouts {
+  /**
+   * How long an idle keep-alive connection stays open. Longer than the idle timeout of the load
+   * balancer in front, so the load balancer closes an idle connection first and never sends a
+   * request on one the server is closing (it would answer 502).
+   */
+  keepAliveTimeoutMs: number;
+  /** How long a client gets to send a request's headers. Longer than the keep-alive timeout. */
+  headersTimeoutMs: number;
+}
+
+/**
+ * Listens on `host:port`; resolves once listening, rejects when it can't (a port in use). Without
+ * `timeouts`, Node's defaults hold.
+ */
+export function listen(app: Express, port: number, host: string, timeouts?: ServerTimeouts): Promise<Server> {
   const server = createServer(app);
+  // Set before listening: a change applies to new connections only.
+  if (timeouts !== undefined) {
+    server.keepAliveTimeout = timeouts.keepAliveTimeoutMs;
+    server.headersTimeout = timeouts.headersTimeoutMs;
+  }
   return new Promise((resolve, reject) => {
     server.once("error", reject);
     server.listen(port, host, () => {

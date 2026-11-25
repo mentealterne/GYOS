@@ -5,15 +5,19 @@ import pg from "pg";
 import { MIGRATIONS_SCHEMA, MIGRATIONS_TABLE } from "../../db/migrate.ts";
 import { SAMPLE_SCHEMA } from "../../db/schema.ts";
 
-/** The name of a database the integration tests may wipe. */
-export const THROWAWAY_DATABASE = /test|verify/i;
+/**
+ * The name of a database the integration tests may wipe: "test" or "verify" as a word of its own,
+ * at an end or set off by "_" or "-" (product_test, test-orders, gyos_verify_1), in any case. Not
+ * a word inside another: latest, contest and testing are refused.
+ */
+export const THROWAWAY_DATABASE = /(^|[_-])(test|verify)([_-]|$)/i;
 
 /** TEST_DATABASE_URL, once its database name says the tests may wipe it. */
 export function testDatabaseUrl(env: Record<string, string | undefined> = process.env): string {
   const url = env.TEST_DATABASE_URL;
   if (url === undefined || url === "") {
     throw new Error(
-      'TEST_DATABASE_URL is not set: the integration tests need a throwaway Postgres database, named with "test" or "verify".',
+      'TEST_DATABASE_URL is not set: the integration tests need a throwaway Postgres database, with "test" or "verify" as a word of its name, such as product_test.',
     );
   }
   let name: string;
@@ -25,7 +29,8 @@ export function testDatabaseUrl(env: Record<string, string | undefined> = proces
   if (!THROWAWAY_DATABASE.test(name)) {
     throw new Error(
       `TEST_DATABASE_URL points at the database "${name}". The integration tests drop and recreate ` +
-        `the sample schema there, so they only run on a database whose name contains "test" or "verify".`,
+        `the sample schema there, so they only run on a database whose name has "test" or "verify" ` +
+        `as a word of its own, set off by "_" or "-": product_test, test-orders, gyos_verify_1.`,
     );
   }
   return url;

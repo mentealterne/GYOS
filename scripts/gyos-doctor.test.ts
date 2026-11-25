@@ -8,7 +8,15 @@ import { cpSync, mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, stat
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
-import { coreTerms, diagnose, frontmatter, parseDecisions, vocabulary, type Finding } from "./gyos-doctor.ts";
+import {
+  coreTerms,
+  diagnose,
+  frontmatter,
+  parseDecisions,
+  readsTenantFromHeader,
+  vocabulary,
+  type Finding,
+} from "./gyos-doctor.ts";
 
 const TEMPLATES = join(import.meta.dirname, "..", "templates");
 
@@ -236,6 +244,28 @@ describe("gyos-doctor", () => {
     assert.deepEqual(failures(diagnose(root)), []);
   });
 
+  it("warns, without failing, while the host takes the tenant from a header", () => {
+    const placeholder = readFileSync(join(TEMPLATES, "apps", "api", "src", "http", "tenant.ts"), "utf8");
+    write(root, "apps/api/src/http/tenant.ts", placeholder);
+    const findings = diagnose(root);
+    assert.deepEqual(failures(findings), []);
+    assert.ok(
+      findings.some(
+        (finding) =>
+          finding.level === "warn" && finding.file === "apps/api/src/http/tenant.ts" && /not authentication/.test(finding.message),
+      ),
+    );
+  });
+
+  it("says nothing about the tenant once it comes from the session", () => {
+    write(
+      root,
+      "apps/api/src/http/tenant.ts",
+      "// It used to be request.get(TENANT_HEADER), the x-tenant-id header.\nexport const tenantOf = (request) => request.session.tenantId;\n",
+    );
+    assert.ok(!diagnose(root).some((finding) => /x-tenant-id/.test(finding.message)));
+  });
+
   it("warns when the load plan's token counts are far from the measured ones", () => {
     write(root, at("SKILL.md"), SKILL.replace("30 tokens", "9000 tokens"));
     assert.ok(diagnose(root).some((finding) => finding.level === "warn" && /load plan states/.test(finding.message)));
@@ -318,6 +348,21 @@ describe("gyos-doctor parsers", () => {
 
   it("reads the glossary's core terms from the first column only", () => {
     assert.deepEqual([...coreTerms(GLOSSARY)], ["invoice", "credit note"]);
+  });
+
+  it("recognises a tenant read from the x-tenant-id header, not any header", () => {
+    for (const code of [
+      "request.get(TENANT_HEADER)",
+      'request.get("x-tenant-id")',
+      "req.header('X-Tenant-Id')",
+      'request.headers["x-tenant-id"]',
+      "request.headers[ TENANT_HEADER ]",
+    ]) {
+      assert.equal(readsTenantFromHeader(`const tenantId = ${code};`), true, code);
+    }
+    for (const code of ['request.get("authorization")', "// request.get(TENANT_HEADER)", "/* headers['x-tenant-id'] */"]) {
+      assert.equal(readsTenantFromHeader(`const value = 1; ${code}`), false, code);
+    }
   });
 
   it("reads active ids, log entries and superseded entries", () => {

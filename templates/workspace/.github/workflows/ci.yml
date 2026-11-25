@@ -40,9 +40,13 @@ jobs:
           # The Node major the product runs on; package.json engines says the same.
           node-version: 24
           cache: pnpm
+      # Needs a committed pnpm-lock.yaml: --frozen-lockfile fails without one. GYOS's templates ship
+      # none, because the module names vary; commit the one the first `pnpm install` writes.
       - run: pnpm install --frozen-lockfile
       - run: pnpm typecheck
       - run: pnpm build
+      # Every module's migrations folder is consistent (drizzle-kit check).
+      - run: pnpm db:check
       - run: pnpm test:unit
       - run: pnpm test:scenarios
       - run: pnpm test:integration
