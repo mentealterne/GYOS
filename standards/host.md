@@ -97,10 +97,10 @@ operation of one module, never a route that calls two.
 - **The `x-tenant-id` header is not authentication.** Any caller can name any tenant, and read or
   write its data. It is a development placeholder, so the routes can be called before the product
   has authentication: `TENANT_FROM_HEADER` turns it on, by default everywhere but production. A
-  host whose `NODE_ENV` is `production` refuses to start while `tenant.ts` is the placeholder, and
-  says to replace it with authentication; so does a host with `TENANT_FROM_HEADER=false`, which
-  has no tenant source left. **Verified** on every run: the built host exits with 1 and that
-  message under `NODE_ENV=production`.
+  host whose `NODE_ENV` is `production`, the default, refuses to start while `tenant.ts` is the
+  placeholder, and says to replace it with authentication; so does a host with
+  `TENANT_FROM_HEADER=false`, which has no tenant source left. **Verified** on every run: under
+  `NODE_ENV=production` the built host fails to start, with that message.
 - The header is checked before any module is called: missing or empty, it is refused with 400
   `missing-tenant`; longer than 128 characters, or holding anything but letters, digits, `.`, `_`
   and `-`, with 400 `invalid-tenant`. The module validates the id again.
