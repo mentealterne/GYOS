@@ -35,8 +35,17 @@ describe("items controller: input parsing", () => {
     expect(item.name).toHaveLength(100);
   });
 
-  it("refuses a blank tenant id", async () => {
-    await expect(controller().list("  ")).rejects.toBeInstanceOf(ZodError);
+  it.each([
+    ["an empty tenant id", ""],
+    ["a blank tenant id", "  "],
+    ["a tenant id with surrounding spaces", " tenant-acme "],
+    ["a tenant id with a trailing newline", "tenant-acme\n"],
+  ])("refuses %s, rather than rewrite it", async (_label, tenantId) => {
+    await expect(controller().list(tenantId)).rejects.toBeInstanceOf(ZodError);
+  });
+
+  it("passes a tenant id through as it is", async () => {
+    expect((await controller().create("Acme Ltd", { name: "Blue widget" })).tenantId).toBe("Acme Ltd");
   });
 
   it("refuses an item id that is not a uuid", async () => {
