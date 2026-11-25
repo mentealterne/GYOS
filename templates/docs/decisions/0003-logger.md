@@ -8,7 +8,13 @@ In the context of observing {{product}} in development and production, facing {{
 go}}, we decided for {{the choice}} (and against {{the alternatives}}), to achieve {{what it
 gives}}, accepting {{what it costs}}.
 
+## Context
+
+{{Where the product runs, who reads its logs, what must never be logged.}}
+
 ## Decision
+
+<!-- gyos: with "none", replace the list and the paragraph below with: "No logger is injected. The host logs to the console; each module writes only warnings and errors to stderr through its fallback." Remove this comment. -->
 
 - **Where logs go:** {{stdout as JSON for the platform, or a vendor}}.
 - **Trace correlation and OpenTelemetry:** {{yes, through @opentelemetry/instrumentation-pino / no}}.
@@ -20,6 +26,17 @@ The host builds the logger once ([apps/api/src/logger.ts](../../apps/api/src/log
 injects it into every module, which tags it with its own name through `child()`. Modules depend
 only on their logger port; without an injected logger, they write only warnings and errors to
 stderr.
+
+## Options considered
+
+- **None:** nothing to set up; little to search when something fails.
+- **pino:** structured JSON, fast, the default the host template ships.
+- **pino with OpenTelemetry:** logs correlated with traces, one more dependency to run.
+- **The team's own:** whatever they already operate, behind the modules' logger port.
+
+## Consequences
+
+{{What the team gets, and what it has to run.}}
 
 Confirmation: invariant: M4
 Confidence: {{level}}. Revisit when: {{the trigger}}.

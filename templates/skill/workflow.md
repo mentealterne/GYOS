@@ -6,19 +6,22 @@
 
 **Will the working tree be different when the work is done?** No: Inquiry. Yes: Change. A bug fix
 is a Change. An Inquiry becomes a Change the moment the user asks for the fix; switch then, from
-step 0, and don't drift into implementing because the fix looks small.
+step 0, and don't drift into implementing because the fix looks small: say what you would change,
+and let the user decide.
 
 ## Inquiry
 
 1. **Clarify** (rule 1 below) if the question is ambiguous on {{the dimensions this context needs}}.
 2. **Load** the glossary and only the files the question needs. "Is this a bug?" needs
-   [scenarios.md](scenarios.md) and [state-of-the-code.md](state-of-the-code.md).
+   `scenarios.md` and `state-of-the-code.md`, when they exist.
 3. **Answer,** citing the file and line each claim comes from.
-4. **Record** what the answer produced (rule 5): a defect in
-   [state-of-the-code.md](state-of-the-code.md), deferred work in
-   [development/todo.md](development/todo.md), a settled decision in
-   [development/decisions.md](development/decisions.md). If it produced nothing worth recording,
-   say so.
+4. **Record** what the answer produced (rule 5):
+   - a defect found goes in `state-of-the-code.md`, created if it doesn't exist;
+   - work identified but not done goes in [development/todo.md](development/todo.md);
+   - a decision settled goes in [development/decisions.md](development/decisions.md);
+   - a documented behaviour that contradicts the code is surfaced, never resolved quietly.
+
+   If the answer produced nothing worth recording, say so.
 
 **An Inquiry can stop reading here.**
 
@@ -38,33 +41,50 @@ documented behaviour or a recorded decision:
 2. name the conflict, citing the file and line;
 3. ask whether the change is intended;
 4. proceed only after explicit confirmation;
-5. update the affected documents in the same change.
+5. update the affected documents in the same change. A changed decision gets a new entry that
+   supersedes the old one.
 
-Check these first:
-- [scenarios.md](scenarios.md);
+Check these first, so this is mechanical rather than a matter of remembering:
+- `scenarios.md`;
 - the Active table in [development/decisions.md](development/decisions.md), with the ADRs it
   links;
 - the invariants in [architecture.md](architecture.md).
 
-A changed decision gets a new entry that supersedes the old one.
+A request that changes documented behaviour is not refused: it is surfaced, confirmed, and the
+documentation follows. Silence is the failure, in either direction.
 
 **3. Pin before refactoring.** Documented behaviour is captured by a scenario or a test *before*
-any refactoring that could change it.
+any refactoring that could change it. If it isn't pinned yet, pinning it is the first step of the
+refactoring.
 
 **4. Defer in writing, in the same turn.** Anything postponed goes into
-[development/todo.md](development/todo.md) now: what, why, and what would make it urgent.
+[development/todo.md](development/todo.md) now: what, why, and what would make it urgent. That
+includes a feature cut from scope, a fix punted, a gap found but not closed, a concern raised and
+set aside. Never at the end of the session, and never from memory.
 
-**5. End with a `development/` write, and say which file.**
+**5. Every invocation ends with a `development/` write.** The file update is the deliverable;
+pasting the same content into chat doesn't count. Say in chat which file you wrote.
 
 | | Writes to |
 | --- | --- |
-| Change with a product surface | `development/qa-checklist.md` (create it the first time), plus any decision or todo |
+| Change with a product surface | `development/qa-checklist.md`, plus any decision or todo |
 | Change without one | A decision, a todo, or a `state-of-the-code.md` entry |
 | Inquiry | Whatever the answer produced |
 
+If an invocation genuinely produced nothing worth recording, say so: a silent omission and a
+deliberate one look the same afterwards.
+
+**The QA checklist** (`development/qa-checklist.md`, created by the first Change with a product
+surface) says what someone else should now check:
+- it is organized by role (the people who use the product), not by story;
+- items are `- [ ]` checkboxes;
+- it links the scenarios instead of copying them.
+
 ## Change
 
-<!-- gyos: this protocol is for the BDD + TDD style. For "TDD only", step 5 is "a failing test" and step 4 stays. For "pragmatic", steps 4 and 5 become "tests are written, in any order". Remove this comment. -->
+<!-- gyos: keep one of the three variants below, the one in docs/decisions/0002-testing-style.md, and delete the other two and this comment. -->
+
+**BDD + TDD:**
 
 ```
 0  Clarify          rule 1
@@ -79,6 +99,12 @@ any refactoring that could change it.
 9  Record           rule 5, last
 ```
 
+**TDD only:** the same steps, with step 5 "a failing test for the promise" and the promise
+written in `scenarios.md`.
+
+**Pragmatic:** the same steps, with steps 4 to 6 "implement, with tests for every rule and
+promise, in any order".
+
 **Gates before implementing:** {{context-specific gates, for example a design reference before
 new UI; or "none"}}.
 
@@ -86,22 +112,24 @@ new UI; or "none"}}.
 
 ## Filing
 
-| Kind of knowledge | Goes to |
-| --- | --- |
-| A term that means something specific here | `glossary.md` |
-| An invariant that must never break | `architecture.md` |
-| How to find where existing behaviour lives | `architecture.md` |
-| A known defect, or behaviour that looks wrong but is deliberate | `state-of-the-code.md` |
-| A dated decision about this context | `development/decisions.md` |
-| A decision that spans contexts, or weighed real alternatives | an ADR in `docs/decisions/`, linked from the Active table |
-| A junction: its name and owner | `docs/context-map.md`, Junctions, linking its ADR |
-| An observable behaviour the context guarantees | a `.feature` file, indexed in `scenarios.md` |
-| A test convention, a tier, what counts as a regression | `testing.md` |
-| A rule followed every time, at a point in the sequence | `workflow.md` |
-| An absolute prohibition | `guardrails.md` |
-| An open question | `docs/context-map.md`, this context's Open questions |
-| Deferred work | `development/todo.md` |
-| Depth on any of the above | `references/` |
+| Kind of knowledge | Goes to | Because |
+| --- | --- | --- |
+| A term that means something specific here | `glossary.md` | It is language, not a rule |
+| An invariant that must never break | `architecture.md` | It is a stable contract |
+| How to find where existing behaviour lives | `architecture.md` | A method doesn't go stale the way a path table does |
+| A known defect, or behaviour that looks wrong but is deliberate | `state-of-the-code.md` | It is the code's condition today, not the contract |
+| A dated decision about this context | `development/decisions.md` | It is state, and it accumulates |
+| A decision that spans contexts, or weighed real alternatives | `docs/decisions/` (an ADR), with a linked row in the Active table of each context it binds | It belongs to no single context, or deserves a full record |
+| A junction: its name and owner | `docs/context-map.md`, Junctions section, linking the ADR that holds the reasons | Recorded once |
+| An observable behaviour the context guarantees | A `.feature` file indexed in `scenarios.md` (BDD + TDD), or a promise written in `scenarios.md` | It is behaviour, not implementation |
+| A test convention, a tier, what counts as a regression | `testing.md` | It is method |
+| A rule the agent follows every time, at a point in the sequence | `workflow.md` | It is protocol |
+| An absolute prohibition | `guardrails.md` | It applies at every step |
+| An open question | `docs/context-map.md`, the context's Open questions | It is shared with the people who can answer it |
+| Deferred work | `development/todo.md` | It must survive the session |
+| Depth on any of the above | `references/` | It is loaded only when a task needs it |
+
+**Decisions never go in `architecture.md`.**
 
 **Optional files are created during work.** When work surfaces content for `scenarios.md`,
 `state-of-the-code.md` or `guardrails.md` and the file doesn't exist yet, create it in the same
@@ -109,19 +137,20 @@ turn and say so.
 
 ## Ceilings and pruning
 
-| File | Ceiling |
-| --- | --- |
-| `SKILL.md` | 150 lines |
-| `glossary.md`, `architecture.md`, `workflow.md` | 200 lines |
-| `testing.md`, `scenarios.md`, `state-of-the-code.md`, `guardrails.md` | 250 lines |
-| The Active table in `development/decisions.md` | 50 rows |
-| The log in `development/decisions.md` | 400 lines |
-| `development/todo.md` | 150 lines |
-| `development/qa-checklist.md` | 400 lines |
+| File | Ceiling | At the ceiling |
+| --- | --- | --- |
+| `SKILL.md` | 150 lines | It has picked up domain knowledge: move it to the file that owns it |
+| `glossary.md`, `architecture.md`, `workflow.md` | 200 lines | Depth has leaked into a contract: move it to `references/` |
+| `testing.md`, `scenarios.md`, `state-of-the-code.md`, `guardrails.md` | 250 lines | Split by concern, or move detail to `references/` |
+| The Active table in `development/decisions.md` | 50 rows | Too many decisions hold at once: some belong in `architecture.md` as invariants, or in an ADR |
+| The log in `development/decisions.md` | 400 lines | Archive superseded entries older than 180 days to `decisions-archive.md`, linked at the top |
+| `development/todo.md` | 150 lines | Delete entries that are done or no longer true |
+| `development/qa-checklist.md` | 400 lines | Split by concern, keeping the organization by role |
+| `references/*` | none | Not in the load plan; length costs nothing until something loads it |
 
 **Pruning is part of the write.** When you write to a file over its ceiling, bring it back under
-in the same write, and say so in one line. Prune only the file you are writing. Decisions log:
-archive entries that are superseded and older than 180 days to `decisions-archive.md`.
+in the same write: not a follow-up, not a todo entry. Prune only the file you are writing, and say
+so in one line.
 
 ## Crossing into another context
 
@@ -140,3 +169,8 @@ an event): also load its `scenarios.md` and apply its confront rule.
 **A junction belongs to neither context.** Name it, say so, and settle its owner before
 implementing. The default owner is the host's composition root. Record it once: in the Junctions
 section of [docs/context-map.md](../../../docs/context-map.md), linking an ADR with the reasons.
+
+**Neighbours are named in three places only:** [glossary.md](glossary.md) for shared terms,
+[SKILL.md](SKILL.md) for the activation boundary, [architecture.md](architecture.md) for ports
+implemented by another module. Never here: a list of neighbours would go stale the day a context
+is added.

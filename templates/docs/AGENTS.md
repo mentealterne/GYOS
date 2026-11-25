@@ -36,6 +36,8 @@ context. It holds the glossary, the invariants, the promises and the decisions.
 
 ## Commands
 
+<!-- gyos: keep only the commands the product's package.json scripts and docker-compose.yml provide, and remove this comment. -->
+
 ```sh
 pnpm install
 docker compose up -d          # Postgres for development and tests

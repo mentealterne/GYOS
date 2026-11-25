@@ -34,7 +34,9 @@ Confirmation: scenario: "Registering twice with different casing is refused"; in
 Confidence: medium. Revisit when: <the change that would reopen it>
 ```
 
-- **An ADR** carries every line, under a `#` title with its id: `# ADR-0007 — Title (date)`.
+- **An ADR** carries every part, under a `#` title with its id: `# ADR-0007 — Title (date)`.
+  Context, Options considered and Consequences may be `Name:` lines or, when they need room,
+  `## Name` sections.
 - **A context entry** needs at least the heading, the status line, the summary sentence and
   Confirmation.
 
@@ -45,7 +47,7 @@ fails a check. Separate forms with `;`:
 
 | Form | Matches |
 | --- | --- |
-| `scenario: "<name>"` | A `Scenario:`, `Scenario Outline:` or `Example:` with that name in the context's `.feature` files |
+| `scenario: "<name>"` | A `Scenario:`, `Scenario Outline:` or `Example:` with that name in the context's `.feature` files; for an ADR, in any `.feature` file of the product |
 | `test: <path> "<name>"` | A test with that name in that file |
 | `invariant: C<n>`, `invariant: <context>/C<n>`, `invariant: M<n>` | An invariant in the context's `architecture.md`, in another context's, or in the module standard |
 

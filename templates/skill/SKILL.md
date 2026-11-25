@@ -26,9 +26,9 @@ metadata:
 Once awake, stay if the request matches these signals; otherwise hand over (see the cross-domain
 rule in [workflow.md](workflow.md)):
 
-| Signal | Matches |
+| Signal | Form |
 | --- | --- |
-| Paths | `modules/{{context}}/**`, {{frontend folder}}, `modules/{{context}}/features/**` |
+| Paths | `modules/{{context}}/**`, {{frontend folder}} |
 | Vocabulary | The terms in [glossary.md](glossary.md) |
 | Questions | {{question shapes, as examples}} |
 
@@ -47,9 +47,11 @@ answer, cite the file and line, record what you learned. If so, **Change**: the 
 | Always | [glossary.md](glossary.md) | {{n}} tokens |
 | Inquiry | The glossary, plus the one or two files the question needs | {{n}}–{{n}} tokens |
 | Change | [architecture.md](architecture.md), [workflow.md](workflow.md), [testing.md](testing.md), the Active table of [development/decisions.md](development/decisions.md) (up to `## Log`) | {{n}} tokens |
-| On arrival | [scenarios.md](scenarios.md), [state-of-the-code.md](state-of-the-code.md), [guardrails.md](guardrails.md), `references/` | when the task reaches them |
+| On arrival | `scenarios.md`, `state-of-the-code.md`, `guardrails.md` (when they exist), `references/` | when the task reaches them |
+| Last | The module's code and `docs/` | only when this skill's files don't answer |
 
-Token counts are characters ÷ 4. `/gyos:doctor` reports the measured numbers.
+Tokens are characters ÷ 4. The Inquiry range runs from the glossary alone to the glossary plus the
+largest file an Inquiry may need. `/gyos:doctor` reports the measured numbers.
 
 ## Quick reference
 
@@ -58,6 +60,14 @@ Token counts are characters ÷ 4. `/gyos:doctor` reports the measured numbers.
 | The module | [modules/{{context}}/](../../../modules/{{context}}/) |
 | Its operations | [modules/{{context}}/src/module-controllers/](../../../modules/{{context}}/src/module-controllers/) |
 | Its contract | [modules/{{context}}/src/contracts.ts](../../../modules/{{context}}/src/contracts.ts) |
-| Its scenarios | [modules/{{context}}/features/](../../../modules/{{context}}/features/) |
+| Its scenarios (BDD + TDD) | `modules/{{context}}/features/` |
 | Its entry in the context map | [docs/context-map.md](../../../docs/context-map.md) |
 | The module standard | [docs/standards/module.md](../../../docs/standards/module.md) |
+
+**References**, loaded only when the task needs them:
+
+<!-- gyos: list each file in references/ with when to load it, or keep the "No references yet" row; then remove this comment. -->
+
+| File | Load when |
+| --- | --- |
+| — | No references yet |

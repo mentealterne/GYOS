@@ -10,6 +10,11 @@ in each glossary / keep business terms in the business language in code, with En
 and patterns}}, to achieve {{one name per concept, readable by the team and the business}},
 accepting {{the cost of the choice}}.
 
+## Context
+
+{{The business's language, who reads the code, whether the glossary will be read by
+non-developers.}}
+
 ## Decision
 
 - **Glossaries:** every term lists its business form first and its code name second.
@@ -17,8 +22,19 @@ accepting {{the cost of the choice}}.
 - **Never:** diacritics in identifiers; two names for one concept; a translation that is a false
   friend ({{for example "attuale" is "current", not "actual"}}).
 
+## Options considered
+
+- **Translate:** identifiers read like ordinary English code; every term needs a careful
+  translation, and the glossary carries both forms.
+- **Keep the business language:** the code speaks like the business; mixed-language identifiers,
+  and harder for newcomers who don't speak it.
+
 There is no consensus in the literature on this choice; what matters is that it is made once and
 followed.
 
-Confirmation: {{a glossary term and its identifier, for example: invariant: <context>/C1}}
+## Consequences
+
+{{What it means for naming new code.}}
+
+Confirmation: Unverified: checked by review of each glossary's "In code" column, not by a test.
 Confidence: {{level}}. Revisit when: {{the trigger}}.

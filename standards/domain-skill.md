@@ -32,12 +32,13 @@ The shape of every domain skill GYOS generates, and the rules each one follows. 
 12. [state-of-the-code.md](#state-of-the-codemd)
 13. [guardrails.md](#guardrailsmd)
 14. [development/](#development)
+15. [Never invent, and mark what isn't checked](#never-invent-and-mark-what-isnt-checked)
 <!-- gyos-only:start -->
-15. [How GYOS fills a new skill (GYOS only)](#how-gyos-fills-a-new-skill-gyos-only)
+16. [How GYOS fills a new skill (GYOS only)](#how-gyos-fills-a-new-skill-gyos-only)
 <!-- gyos-only:end -->
-16. [Conformance checklist](#conformance-checklist)
+17. [Conformance checklist](#conformance-checklist)
 <!-- gyos-only:start -->
-17. [Changing this standard (GYOS only)](#changing-this-standard-gyos-only)
+18. [Changing this standard (GYOS only)](#changing-this-standard-gyos-only)
 <!-- gyos-only:end -->
 
 ---
@@ -169,7 +170,7 @@ generation.
 | A dated decision about this context | `development/decisions.md` | It is state, and it accumulates |
 | A decision that spans contexts, or weighed real alternatives | `docs/decisions/` (an ADR), with a linked row in the Active table of each context it binds | It belongs to no single context, or deserves a full record |
 | A junction: its name and owner | `docs/context-map.md`, Junctions section, linking the ADR that holds the reasons | Recorded once |
-| An observable behaviour the context guarantees | The `.feature` files, indexed in `scenarios.md` | It is behaviour, not implementation |
+| An observable behaviour the context guarantees | A `.feature` file indexed in `scenarios.md` (BDD + TDD), or a promise written in `scenarios.md` | It is behaviour, not implementation |
 | A test convention, a tier, what counts as a regression | `testing.md` | It is method |
 | A rule the agent follows every time, at a point in the sequence | `workflow.md` | It is protocol |
 | An absolute prohibition | `guardrails.md` | It applies at every step |
@@ -195,7 +196,7 @@ and the pruning rule.
 | `glossary.md`, `architecture.md`, `workflow.md` | 200 lines | Depth has leaked into a contract: move it to `references/` |
 | `testing.md`, `scenarios.md`, `state-of-the-code.md`, `guardrails.md` | 250 lines | Split by concern, or move detail to `references/` |
 | The Active table in `development/decisions.md` | 50 rows | Too many decisions hold at once: some belong in `architecture.md` as invariants, or in an ADR |
-| The log in `development/decisions.md` | 400 lines | Archive (see [development/](#development)) |
+| The log in `development/decisions.md` | 400 lines | Archive superseded entries older than 180 days to `decisions-archive.md`, linked at the top |
 | `development/todo.md` | 150 lines | Delete entries that are done or no longer true |
 | `development/qa-checklist.md` | 400 lines | Split by concern, keeping the organization by role |
 | `references/*` | none | Not in the load plan; length costs nothing until something loads it |
@@ -642,17 +643,25 @@ The handoff artifact: what someone else should now check, **organized by role** 
 use the product), not by story. Items are `- [ ]` checkboxes. It links scenarios instead of
 copying them. The first Change with a product surface creates it.
 
-<!-- gyos-only:start -->
 ---
 
-## How GYOS fills a new skill (GYOS only)
+## Never invent, and mark what isn't checked
 
-**Never invent.** Every term, invariant, scenario and decision traces back to an answer the user
-gave or confirmed, to code, or to a document.
+**Never invent.** Every term, invariant, scenario and decision in a skill traces back to an answer
+the user gave or confirmed, to code, or to a document.
 - **Unconfirmed items stay open.** Whatever discovery labelled *inferred* or *speculative* goes in
   only after the user confirms it. Otherwise it stays an open question in `docs/context-map.md`.
 - **Unchecked claims are marked.** Anything written before it could be checked carries a line or
   cell starting with `Unverified:`. `/gyos:doctor` lists every `Unverified:` marker.
+
+**The trace.** When a product is set up, the walking skeleton exists for one context, so only that
+context's trace can be checked against running code. Every other trace is marked `Unverified:`
+until its first Change. `/gyos:doctor` checks, for every trace, that each path in it exists.
+
+<!-- gyos-only:start -->
+---
+
+## How GYOS fills a new skill (GYOS only)
 
 | File | Filled from |
 | --- | --- |
@@ -661,13 +670,10 @@ gave or confirmed, to code, or to a document.
 | `architecture.md` | The context's invariants and classification from discovery; the module's areas, ports and published language from scaffolding |
 | `workflow.md` | This standard's protocol, specialized with the context's clarify dimensions, the testing style, its standing risks, and the filing and ceiling tables |
 | `testing.md` | The module's real test commands and tiers |
-| `scenarios.md` | The examples from discovery, as the generated `.feature` files and their index, or as written promises |
-| `development/decisions.md` | An Active table linking the setup ADRs; the log starts empty |
-| `development/todo.md` | Created empty |
-
-**The trace.** The walking skeleton exists for one context, so only that context's trace can be
-checked against running code at first. Every other trace is marked `Unverified:` until its first
-Change. `/gyos:doctor` checks, for every trace, that each path in it exists.
+| `scenarios.md` | The examples from discovery, as promises not built yet; `/gyos:feature` turns each one into a `.feature` file or a written promise as it builds it |
+| `state-of-the-code.md` | One entry: the module's example area comes from the GYOS template, isn't a product decision, and is replaced by the first real feature |
+| `development/decisions.md` | An Active table linking the setup ADRs and the junction ADRs; the log starts empty |
+| `development/todo.md` | One entry: replace the example area |
 
 <!-- gyos-only:end -->
 ---

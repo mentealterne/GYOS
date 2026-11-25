@@ -14,6 +14,7 @@ from the Active table. Everything else is appended.
 | ADR-0002 | {{date}} | Testing style: {{style}} ([ADR](../../../../docs/decisions/0002-testing-style.md)) |
 | ADR-0003 | {{date}} | Logger: {{choice}} ([ADR](../../../../docs/decisions/0003-logger.md)) |
 | ADR-0004 | {{date}} | Business terms in code: {{choice}} ([ADR](../../../../docs/decisions/0004-language.md)) |
+<!-- gyos: add one row per junction ADR this context takes part in, and remove this comment. -->
 
 ---
 

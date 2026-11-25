@@ -30,7 +30,8 @@ matters. The defaults are the ones GYOS verifies end to end.
 | Validation | Zod at every boundary |
 | Module build | `tsc`, with the `@gyos/source` condition for development |
 | Boundaries | Architecture tests in Vitest |
-{{Any default the user changed, with the reason.}}
+
+{{Any default the user changed, with the reason; or "None changed."}}
 
 ## Options considered
 

@@ -9,10 +9,12 @@ How {{context}} proves that something works. The tiers are the module standard's
 
 | Tier | Where | Command |
 | --- | --- | --- |
+| Typecheck | the whole module | `pnpm --filter @module/{{context}} typecheck` |
 | Unit and architecture | `modules/{{context}}/src/tests/unit/` | `pnpm --filter @module/{{context}} test:unit` |
-| Contract | `modules/{{context}}/src/tests/contract/` | runs inside the unit and integration tiers |
+| Contract (the in-memory and Postgres adapters behave alike) | `modules/{{context}}/src/tests/contract/` | runs inside the unit and integration tiers |
 | Scenarios | `modules/{{context}}/features/` | `pnpm --filter @module/{{context}} test:scenarios` |
 | Integration | `modules/{{context}}/src/tests/integration/` | `pnpm --filter @module/{{context}} test:integration` (needs `TEST_DATABASE_URL`) |
+| Workspace architecture | `tooling/architecture/` | `pnpm --filter @tooling/architecture test:unit` |
 
 <!-- gyos: with the "TDD only" or "pragmatic" testing style there is no Scenarios tier; remove its row. Remove this comment. -->
 

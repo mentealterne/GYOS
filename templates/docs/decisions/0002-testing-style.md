@@ -8,6 +8,11 @@ In the context of how {{product}} proves its behaviour, facing {{the team's pref
 for {{the style}} (and against {{the other styles}}), to achieve {{what it gives}}, accepting
 {{what it costs}}.
 
+## Context
+
+{{Who writes the tests, whether non-developers read the promises, how much ceremony the team
+accepts.}}
+
 ## Decision
 
 {{One of:}}
@@ -21,9 +26,17 @@ for {{the style}} (and against {{the other styles}}), to achieve {{what it gives
 In every style: architecture tests, typecheck and the integration tier run on every change, and
 each domain skill's `workflow.md` follows this style.
 
+## Options considered
+
+- **BDD + TDD:** promises readable by the whole team and run as tests, at the cost of
+  maintaining Gherkin and step definitions.
+- **TDD only:** less ceremony; the promises live in prose, checked only through unit tests.
+- **Pragmatic:** the fastest start; nothing forces a test before the code.
+
 ## Consequences
 
 {{What changes in day-to-day work.}}
 
-Confirmation: {{for BDD + TDD: scenario: "<the walking skeleton's first scenario>"}}
+<!-- gyos: keep the Confirmation for the chosen style and remove this comment. BDD + TDD: scenario: "<the walking skeleton's first scenario>". TDD only or pragmatic: test: <path> "<the walking skeleton's first test>". -->
+Confirmation: {{the form above}}
 Confidence: {{level}}. Revisit when: {{the trigger}}.

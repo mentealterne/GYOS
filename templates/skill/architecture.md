@@ -50,6 +50,7 @@ What other contexts may rely on:
   → {{Port}} → {{area}}/adapters/{{adapter}}.ts
 ```
 
-Unverified: {{remove this line once every path above has been checked against the code}}.
+<!-- gyos: keep the next line until every path in the trace has been checked against the code; the walking skeleton's context removes it. Remove this comment. -->
+Unverified: the trace hasn't been checked against the code yet.
 
 **Naming as address:** {{how file names encode the vocabulary, if they do}}.
