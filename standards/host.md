@@ -55,7 +55,10 @@ module that provides is built first. Each junction is named in a comment and doc
 Zod and throws one error that lists every problem, so a bad deploy fails at boot with one complete
 message. It never echoes a value: `DATABASE_URL` holds a password. A variable set to an empty
 string counts as not set. The modules get values, never the environment (module.md, M6). A unit
-test fails on any other read, however it is spelled.
+test fails on any other read written in a spelling it knows: `process.env`, `process["env"]`,
+`globalThis.process.env`, `const { env } = process`, `import { env } from "node:process"`, and
+`.env` on a default or namespace import of `node:process`. It reads the syntax, not the values, so
+an alias (`const p = process; p.env`), a computed key or `require("process")` gets past it.
 
 | Variable | Default |
 | --- | --- |

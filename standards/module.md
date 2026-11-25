@@ -200,8 +200,11 @@ _Trap:_ a Drizzle call in a service is a place the next schema change will have 
 
 Nothing under `src/` reads `process.env`: the host reads the environment and passes the values
 in. Tooling at the module's root (`drizzle.config.ts`, `scripts/`) may read it, and so may the
-integration tests. An architecture test fails on any other read, however it is spelled:
-`process["env"]`, `const { env } = process`, `import { env } from "node:process"` included.
+integration tests. An architecture test fails on any other read written in a spelling it knows:
+`process.env`, `process["env"]`, `globalThis.process.env`, `const { env } = process`,
+`import { env } from "node:process"`, and `.env` on a default or namespace import of
+`node:process`. It reads the syntax, not the values, so an alias (`const p = process; p.env`), a
+computed key or `require("process")` gets past it.
 _Why:_ bad configuration fails at boot, not at somebody's first request, and the person fixing
 it sees every problem in one restart, not one per restart.
 
