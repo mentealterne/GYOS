@@ -25,6 +25,7 @@ apps/api/
     ├── config.ts                the environment, validated: the only reader of process.env
     ├── logger.ts                pino, and the adapter to the modules' logger port
     ├── modules.ts               builds every module once; the junctions
+    ├── shutdown.ts              what stops the process: the signals, an error nothing caught
     └── http/
         ├── app.ts               createApp: probes, JSON body, routes, error middleware
         ├── errors.ts            how an error becomes a status
@@ -65,6 +66,9 @@ test fails on any other read, however it is spelled.
 | `LOG_LEVEL` | `info` |
 | `DATABASE_POOL_MAX` | `10` |
 | `SHUTDOWN_TIMEOUT_MS` | `10000` |
+| `SHUTDOWN_DELAY_MS` | `0`: how long the server keeps serving after a signal, `/ready` at 503 (H8) |
+| `KEEP_ALIVE_TIMEOUT_MS` | `65000`: above the load balancer's idle timeout (H8) |
+| `HEADERS_TIMEOUT_MS` | `66000`: above `KEEP_ALIVE_TIMEOUT_MS`, at most `300000` (H8) |
 | `TENANT_FROM_HEADER` | `true`, except in production: the tenant placeholder (H6). `true` or `false` |
 
 **H4. One logger, built once, adapted to the modules' port.** `logger.ts` builds pino and adapts
@@ -126,11 +130,37 @@ operation of one module, never a route that calls two.
 - An error thrown after the response has started can't change its status: it is logged, with the
   method and the path, and Express's default handler cuts the connection.
 
-**H8. Graceful shutdown.** On `SIGTERM` or `SIGINT`: `/ready` turns 503, the server stops accepting
-connections, requests in flight get `SHUTDOWN_TIMEOUT_MS` to finish before their connections are
-cut, then the pool ends and the logger flushes. The process exits on its own, with 0; a hard
-timer exits with 1 if closing hangs. A second signal kills it. **Verified** on every run: the host
-logs `stopped` and exits with 0 after `SIGTERM`.
+**H8. Graceful shutdown.** One handler takes `SIGTERM` and `SIGINT` (`shutdown.ts`). On the first:
+`/ready` turns 503, the server keeps serving for `SHUTDOWN_DELAY_MS` (0 by default), then stops
+accepting connections; requests in flight get `SHUTDOWN_TIMEOUT_MS` to finish before their
+connections are cut, then the pool ends and the logger flushes. The process exits on its own,
+with 0; a hard timer exits with 1 if closing hangs. Any second signal, of either kind, ends the
+process at once, with 1. An exception nothing caught, or a promise rejection nothing handled, is
+logged through the logger, then stops the process the same way, without the delay, with 1.
+**Verified** on every run: the host logs `stopped` and exits with 0 after `SIGTERM`; from the
+build, with `SHUTDOWN_DELAY_MS=1500`, it answers `/health` with 200 and `/ready` with 503 during
+the delay, and stops no sooner. The second signal and the crash handlers are proven by a unit test
+of the wiring, not by a run.
+- **Behind a load balancer, or in Kubernetes,** requests can still arrive after `SIGTERM`:
+  Kubernetes starts a Pod's graceful shutdown and, at the same time, evaluates removing it from
+  the Service's EndpointSlices ([Pod termination](https://kubernetes.io/docs/concepts/workloads/pods/pod-termination/),
+  checked 2026-11-25). Set `SHUTDOWN_DELAY_MS` to a few seconds, long enough for the load balancer
+  to see `/ready` fail or the endpoint go; or give the container a `preStop` hook that sleeps,
+  which the kubelet runs before it sends the TERM signal. The grace period
+  (`terminationGracePeriodSeconds`, 30 s by default) must cover the hook or the delay, plus
+  `SHUTDOWN_TIMEOUT_MS`, or the process is killed first. The right numbers depend on the platform;
+  GYOS has not measured them.
+- **Keep-alive outlasts the load balancer's idle timeout.** `KEEP_ALIVE_TIMEOUT_MS` (65 s) and
+  `HEADERS_TIMEOUT_MS` (66 s) set the server's `keepAliveTimeout` and `headersTimeout`; Node's
+  own defaults are 5 s and 60 s (checked on Node 24.6). A load balancer reuses idle connections to
+  the host, and a request it sends on one the host has just closed fails with 502. AWS recommends
+  an application idle timeout larger than the load balancer's, which is 60 s by default
+  ([Application Load Balancer attributes](https://docs.aws.amazon.com/elasticloadbalancing/latest/application/edit-load-balancer-attributes.html#connection-idle-timeout),
+  checked 2026-11-25). The headers timeout stays above the keep-alive one, the order reported to
+  avoid the same early closes in [nodejs/node#27363](https://github.com/nodejs/node/issues/27363)
+  ("ELB timeout < keepAliveTimeout < headersTimeout"); `config.ts` refuses the other order. Behind
+  a load balancer with a longer idle timeout, raise both above it. A unit test checks that the
+  server gets the values; no run against a load balancer **verifies** the effect.
 
 **H9. Modules through their entry points only.** The host imports a module's root entry, its
 `./contracts` and its vocabulary subpaths, and declares the module in `package.json`.
@@ -153,7 +183,7 @@ markers are missing or doubled, and a second run changes nothing (verified).
 
 | Tier | Where | Runs against | Proves |
 | --- | --- | --- | --- |
-| **Unit** | `src/tests/unit/` | The app on an ephemeral port; each module's routes on a fake of the module | Config, the logger adapter, the probes, the error mapping, shutdown, each route's statuses |
+| **Unit** | `src/tests/unit/` | The app on an ephemeral port; each module's routes on a fake of the module | Config, the logger adapter, the probes, the error mapping, the tenant placeholder, closing the server, what stops the process, each route's statuses |
 | **Integration** | `src/tests/integration/` | Every module, built as `main.ts` builds them, in a database of its own | That every module gets ready on an empty database, and the app reports it |
 
 - **The fakes use only what a module publishes.** A module's in-memory adapters live in its

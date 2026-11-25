@@ -23,6 +23,9 @@ describe("loadConfig", () => {
       databasePoolMax: 10,
       logLevel: "info",
       shutdownTimeoutMs: 10_000,
+      shutdownDelayMs: 0,
+      keepAliveTimeoutMs: 65_000,
+      headersTimeoutMs: 66_000,
       tenantFromHeader: false,
     });
   });
@@ -36,6 +39,9 @@ describe("loadConfig", () => {
       DATABASE_POOL_MAX: "4",
       LOG_LEVEL: "debug",
       SHUTDOWN_TIMEOUT_MS: "2500",
+      SHUTDOWN_DELAY_MS: "5000",
+      KEEP_ALIVE_TIMEOUT_MS: "125000",
+      HEADERS_TIMEOUT_MS: "126000",
       TENANT_FROM_HEADER: "false",
     });
     expect(config).toEqual({
@@ -46,6 +52,9 @@ describe("loadConfig", () => {
       databasePoolMax: 4,
       logLevel: "debug",
       shutdownTimeoutMs: 2500,
+      shutdownDelayMs: 5000,
+      keepAliveTimeoutMs: 125_000,
+      headersTimeoutMs: 126_000,
       tenantFromHeader: false,
     });
   });
@@ -83,6 +92,16 @@ describe("loadConfig", () => {
     expect(problemsOf({ DATABASE_URL: "mysql://localhost/product", PORT: "70000" })).toEqual([
       "PORT: expected a port, 0 to 65535",
       "DATABASE_URL: expected a postgres:// URL",
+    ]);
+  });
+
+  it("refuses a headers timeout that isn't above the keep-alive timeout", () => {
+    expect(problemsOf({ DATABASE_URL, KEEP_ALIVE_TIMEOUT_MS: "70000" })).toEqual([
+      "HEADERS_TIMEOUT_MS: expected more than KEEP_ALIVE_TIMEOUT_MS",
+    ]);
+    expect(problemsOf({ DATABASE_URL, HEADERS_TIMEOUT_MS: "400000", SHUTDOWN_DELAY_MS: "-1" })).toEqual([
+      "SHUTDOWN_DELAY_MS: expected a whole number of milliseconds, 0 or more",
+      "HEADERS_TIMEOUT_MS: expected a whole number of milliseconds, 2 to 300000",
     ]);
   });
 

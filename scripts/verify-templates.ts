@@ -300,43 +300,69 @@ function smokeChecks(): Check[] {
  * Starts the host as a deploy would (port chosen by the system, JSON logs), but with NODE_ENV=test:
  * a production host refuses the tenant header, the placeholder the requests use. Waits for its
  * "listening" line, makes the requests in smokeChecks(), then stops it with SIGTERM, and expects
- * it to log "stopped" and exit with 0.
+ * it to log "stopped" and exit with 0. With a shutdown delay, it also checks that the host keeps
+ * answering during the delay, /health with 200 and /ready with 503, and that it waited that long.
  */
-async function runHost(step: string, args: string[], env: NodeJS.ProcessEnv): Promise<boolean> {
-  console.log(`\n▶ ${step}\n  $ node ${args.join(" ")}`);
+async function runHost(
+  step: string,
+  args: string[],
+  env: NodeJS.ProcessEnv,
+  { shutdownDelayMs = 0 }: { shutdownDelayMs?: number } = {},
+): Promise<boolean> {
+  console.log(`\n▶ ${step}\n  $ SHUTDOWN_DELAY_MS=${shutdownDelayMs} node ${args.join(" ")}`);
   const started = performance.now();
   const child = spawn(process.execPath, args, {
     cwd: host,
-    env: { ...baseEnv, ...env, NODE_ENV: "test", HOST: "127.0.0.1", PORT: "0", LOG_LEVEL: "info" },
+    env: {
+      ...baseEnv,
+      ...env,
+      NODE_ENV: "test",
+      HOST: "127.0.0.1",
+      PORT: "0",
+      LOG_LEVEL: "info",
+      SHUTDOWN_DELAY_MS: String(shutdownDelayMs),
+    },
     stdio: ["ignore", "pipe", "inherit"],
   });
   const lines: Record<string, unknown>[] = [];
+  const waiting: { msg: string; resolve: (line: Record<string, unknown>) => void }[] = [];
+  /** Resolves with the first log line whose msg is `msg`, once the host has written it. */
+  const logged = (msg: string): Promise<Record<string, unknown>> =>
+    new Promise((resolve) => {
+      const line = lines.find((candidate) => candidate.msg === msg);
+      if (line === undefined) waiting.push({ msg, resolve });
+      else resolve(line);
+    });
+  let buffer = "";
+  child.stdout.setEncoding("utf8");
+  child.stdout.on("data", (chunk: string) => {
+    buffer += chunk;
+    const complete = buffer.split("\n");
+    buffer = complete.pop() ?? "";
+    for (const text of complete) {
+      console.log(`  ${text}`);
+      try {
+        const line = JSON.parse(text) as Record<string, unknown>;
+        lines.push(line);
+        for (const waiter of waiting.filter((candidate) => candidate.msg === line.msg)) waiter.resolve(line);
+      } catch {
+        // Not a log line.
+      }
+    }
+  });
   const exited = new Promise<number | null>((resolve) => child.once("exit", (code) => resolve(code)));
   const listening = new Promise<number>((resolve, reject) => {
-    let buffer = "";
-    child.stdout.setEncoding("utf8");
-    child.stdout.on("data", (chunk: string) => {
-      buffer += chunk;
-      const complete = buffer.split("\n");
-      buffer = complete.pop() ?? "";
-      for (const line of complete) {
-        console.log(`  ${line}`);
-        try {
-          const entry = JSON.parse(line) as Record<string, unknown>;
-          lines.push(entry);
-          if (entry.msg === "listening" && typeof entry.port === "number") resolve(entry.port);
-        } catch {
-          // Not a log line.
-        }
-      }
-    });
+    void logged("listening").then((line) =>
+      typeof line.port === "number" ? resolve(line.port) : reject(new Error("it logged listening without a port")),
+    );
     void exited.then((code) => reject(new Error(`it exited with ${String(code)} before listening`)));
     setTimeout(() => reject(new Error("it was not listening after 60 s")), 60_000).unref();
   });
 
   const problems: string[] = [];
+  let port: number | undefined;
   try {
-    const port = await listening;
+    port = await listening;
     const tenant = { "x-tenant-id": `tenant-${randomUUID()}` };
     for (const check of smokeChecks()) {
       const response = await fetch(`http://127.0.0.1:${port}${check.path}`, {
@@ -356,14 +382,36 @@ async function runHost(step: string, args: string[], env: NodeJS.ProcessEnv): Pr
   } finally {
     child.kill("SIGTERM");
   }
+  if (shutdownDelayMs > 0 && port !== undefined) {
+    // During the delay the host still answers, but says it is not ready.
+    const stopping = await Promise.race([logged("stopping"), exited.then(() => undefined)]);
+    if (stopping === undefined) {
+      problems.push("it exited without logging stopping");
+    } else {
+      try {
+        const statuses: number[] = [];
+        for (const path of ["/health", "/ready"]) statuses.push((await fetch(`http://127.0.0.1:${port}${path}`)).status);
+        console.log(`  during the shutdown delay: /health → ${statuses[0]}, /ready → ${statuses[1]}`);
+        if (statuses[0] !== 200 || statuses[1] !== 503) {
+          problems.push(`during the shutdown delay, /health and /ready answered ${statuses.join(" and ")}, expected 200 and 503`);
+        }
+      } catch (error) {
+        problems.push(`during the shutdown delay it didn't answer: ${error instanceof Error ? error.message : String(error)}`);
+      }
+    }
+  }
   const code = await Promise.race([exited, new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 30_000).unref())]);
+  const stopping = lines.find((line) => line.msg === "stopping");
+  const stopped = lines.find((line) => line.msg === "stopped");
   if (code === "hung") {
     child.kill("SIGKILL");
     problems.push("it didn't exit within 30 s of SIGTERM");
   } else if (code !== 0) {
     problems.push(`it exited with ${String(code)} after SIGTERM`);
-  } else if (!lines.some((line) => line.msg === "stopped")) {
+  } else if (stopped === undefined) {
     problems.push('it exited without logging "stopped"');
+  } else if (Number(stopped.time) - Number(stopping?.time) < shutdownDelayMs) {
+    problems.push(`it stopped ${Number(stopped.time) - Number(stopping?.time)} ms after SIGTERM, before its delay of ${shutdownDelayMs} ms`);
   }
   for (const problem of problems) console.error(`  ${problem}`);
   return record(step, problems.length === 0, started);
@@ -462,7 +510,8 @@ async function verify(): Promise<void> {
 
   // Both modules migrate at once on an empty database, from source through the workspace symlinks.
   if (!(await runHost("host from source", ["--conditions=@gyos/source", "src/main.ts"], env))) return;
-  if (!(await runHost("host from build", ["dist/main.js"], env))) return;
+  // From the build, with a shutdown delay: it keeps answering, and says it is not ready.
+  if (!(await runHost("host from build", ["dist/main.js"], env, { shutdownDelayMs: 1_500 }))) return;
   if (!run("db:migrate", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:migrate"], { env })) return;
   // The integration tests wipe schemas, or whole databases: they read TEST_DATABASE_URL, not
   // DATABASE_URL, and refuse a database whose name doesn't contain "test" or "verify".
