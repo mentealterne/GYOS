@@ -21,7 +21,9 @@ import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = fileURLToPath(new URL("../", import.meta.url));
-const MODULES = ["billing", "scheduling"] as const;
+// The second name has two words, so every run re-checks what the standard claims for them: a
+// quoted schema ("case-management"), PascalCase and UPPER_SNAKE identifiers.
+const MODULES = ["billing", "case-management"] as const;
 
 const flags = new Set(process.argv.slice(2));
 const keep = flags.has("--keep");
@@ -157,7 +159,7 @@ function writeSmokeHost(): void {
       private: true,
       type: "module",
       scripts: { build: "tsc -p tsconfig.build.json", typecheck: "tsc --noEmit" },
-      dependencies: { "@module/billing": "workspace:*", "@module/scheduling": "workspace:*", pg: "catalog:" },
+      dependencies: { "@module/billing": "workspace:*", "@module/case-management": "workspace:*", pg: "catalog:" },
       devDependencies: { "@types/node": "catalog:", "@types/pg": "catalog:", "@typescript/native": "catalog:" },
     }),
   );
@@ -193,7 +195,7 @@ import pg from "pg";
 import { BillingItemError, createBillingModule, isBillingInputError } from "@module/billing";
 import type { BillingLogger } from "@module/billing/contracts";
 import { ITEM_NAME_MAX_LENGTH } from "@module/billing/items";
-import { createSchedulingModule } from "@module/scheduling";
+import { createCaseManagementModule } from "@module/case-management";
 
 const url = process.env.DATABASE_URL;
 if (url === undefined) throw new Error("DATABASE_URL is not set");
@@ -209,8 +211,8 @@ const logger = (bindings: Record<string, unknown> = {}): BillingLogger => ({
 const pool = new pg.Pool({ connectionString: url });
 try {
   const billing = createBillingModule({ db: pool, logger: logger() });
-  const scheduling = createSchedulingModule({ db: pool, logger: logger() });
-  await Promise.all([billing.ready(), scheduling.ready()]);
+  const caseManagement = createCaseManagementModule({ db: pool, logger: logger() });
+  await Promise.all([billing.ready(), caseManagement.ready()]);
 
   const tenant = randomUUID();
   // Never called: it proves the module's types are real, not any.
@@ -226,8 +228,8 @@ try {
   if (!isBillingInputError(invalid) || isBillingInputError(refused)) {
     throw new Error(\`expected only the blank name to be invalid input, got \${String(invalid)}\`);
   }
-  const [billingItems, schedulingItems] = await Promise.all([billing.items.list(tenant), scheduling.items.list(tenant)]);
-  if (billingItems.length !== 1 || schedulingItems.length !== 0) {
+  const [billingItems, caseItems] = await Promise.all([billing.items.list(tenant), caseManagement.items.list(tenant)]);
+  if (billingItems.length !== 1 || caseItems.length !== 0) {
     throw new Error("each module should see only its own schema");
   }
   console.log(\`smoke: ok (names up to \${ITEM_NAME_MAX_LENGTH} characters, \${import.meta.url.includes("/dist/") ? "build" : "source"})\`);
@@ -303,7 +305,7 @@ function verify(): void {
   // Both modules migrate at once on an empty database, from source through the workspace symlinks.
   if (!run("host from source", process.execPath, ["--conditions=@gyos/source", "src/main.ts"], { cwd: smoke, env })) return;
   if (!run("host from build", process.execPath, ["dist/main.js"], { cwd: smoke, env })) return;
-  if (!run("db:migrate", "pnpm", ["--filter", "@module/billing", "run", "db:migrate"], { env })) return;
+  if (!run("db:migrate", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:migrate"], { env })) return;
   // The integration tests wipe their module's schema: they read TEST_DATABASE_URL, not
   // DATABASE_URL, and refuse a database whose name doesn't contain "test" or "verify".
   const notForTests = new URL(adminUrl);

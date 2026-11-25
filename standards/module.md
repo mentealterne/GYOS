@@ -30,7 +30,8 @@ A module is the code of **one bounded context**:
 - It is an **ESM package that ships a build**, compiled with `tsc`.
 - It **owns one Postgres schema**, named after it, and migrates that schema itself. A
   multi-word name gives a schema such as `"case-management"`: Drizzle always quotes it, and
-  hand-written SQL must too (verified).
+  hand-written SQL must too (verified on every run: `scripts/verify-templates.ts` scaffolds
+  `case-management`).
 - Apps consume it **in-process**, through its public entry points. There is no HTTP between
   modules: the product is a modular monolith.
 - Inside, it is **ports and adapters**. Pure rules sit in the middle, use cases around them, and
@@ -555,6 +556,9 @@ meeting" belongs to neither assessments nor calendar. For each junction:
   `Pool`.
 - **Versions come from the workspace's pnpm catalog** (`"drizzle-orm": "catalog:"`), so every
   module uses the same ones, and `pg` resolves to one instance for the host and all modules.
+  The catalog pins **exact versions**, not ranges: the template can't ship a lockfile, since
+  module names vary, and ranges would let two installs of it differ. A generated product commits
+  its own `pnpm-lock.yaml`.
 - **[version] No `lint` script yet.** typescript-eslint needs a TypeScript JS API, which
   TypeScript 7.0 doesn't have. The workspace's `typescript` alias to `@typescript/typescript6`
   (below) should satisfy its peer dependency, but that is **not verified**; ESLint arrives with

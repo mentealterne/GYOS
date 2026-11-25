@@ -228,7 +228,8 @@ CI (`scripts/verify-templates.ts` and throwaway experiments):
 - drizzle-kit 0.31 loads a TypeScript `drizzle.config.ts` in a `"type": "module"` package, and
   `generate` and `check` work with it.
 - A module named `case-management` gets the schema `"case-management"`; every tier of tests passes
-  on it, since Drizzle quotes identifiers.
+  on it, since Drizzle quotes identifiers. `scripts/verify-templates.ts` scaffolds it on every
+  run, so this is re-checked in CI.
 - `lock_timeout` bounds the wait in `pg_advisory_lock`: `ready()` fails with `55P03` after the
   configured time while another session holds the lock.
 - A Drizzle transaction rolls back every write of a rejected `work`, and a nested one is a
