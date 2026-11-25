@@ -1,7 +1,7 @@
 // ItemRepository on Postgres, with Drizzle. Rows are mapped to domain types here, and nowhere else.
 import { and, asc, eq } from "drizzle-orm";
 import type { SampleDatabase } from "../../db/database.ts";
-import { items, type ItemRow } from "../../db/schema.ts";
+import { items, ITEMS_TENANT_NAME_KEY, type ItemRow } from "../../db/schema.ts";
 import type { Item, ItemRepository } from "../ports.ts";
 
 const UNIQUE_VIOLATION = "23505";
@@ -51,7 +51,8 @@ export function createPostgresItemRepository(db: SampleDatabase): ItemRepository
           .returning();
         return row === undefined ? "not-found" : toItem(row);
       } catch (error) {
-        if (isUniqueViolation(error)) return "name-taken";
+        // Only this index means "name taken": another unique index refusing the write is a bug.
+        if (isUniqueViolation(error, ITEMS_TENANT_NAME_KEY)) return "name-taken";
         throw error;
       }
     },
@@ -68,10 +69,14 @@ function toItem(row: ItemRow): Item {
   };
 }
 
-/** Drizzle wraps driver errors; the Postgres error code is on the error or on its cause. */
-function isUniqueViolation(error: unknown): boolean {
+/**
+ * Whether `error` is a unique violation of `constraint`. Drizzle wraps driver errors: the Postgres
+ * code and the name of the index that refused the write are on the error or on its cause.
+ */
+function isUniqueViolation(error: unknown, constraint: string): boolean {
   for (let current = error; current instanceof Error; current = current.cause) {
-    if ((current as { code?: unknown }).code === UNIQUE_VIOLATION) return true;
+    const { code, constraint: refusedBy } = current as { code?: unknown; constraint?: unknown };
+    if (code === UNIQUE_VIOLATION) return refusedBy === constraint;
   }
   return false;
 }

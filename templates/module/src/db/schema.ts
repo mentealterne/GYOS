@@ -6,6 +6,9 @@ export const SAMPLE_SCHEMA = "sample";
 
 export const schema = pgSchema(SAMPLE_SCHEMA);
 
+/** The unique index behind "an item's name is unique within its tenant". */
+export const ITEMS_TENANT_NAME_KEY = "items_tenant_id_name_key";
+
 export const items = schema.table(
   "items",
   {
@@ -16,7 +19,7 @@ export const items = schema.table(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
   },
-  (table) => [uniqueIndex("items_tenant_id_name_key").on(table.tenantId, table.name)],
+  (table) => [uniqueIndex(ITEMS_TENANT_NAME_KEY).on(table.tenantId, table.name)],
 );
 
 export type ItemRow = typeof items.$inferSelect;

@@ -303,8 +303,10 @@ through the config.
   produces an HTTP error.
 - **Anything else is a bug** and is thrown as a plain error.
 - **A port reports an expected outcome as a value**, not an exception: an adapter returns
-  `"name-taken"` when a unique index refuses a write, and the service turns it into the typed
-  error. A rule checked before the write can still lose a race; the index is the backstop.
+  `"name-taken"` when the unique index behind that rule refuses a write, and the service turns it
+  into the typed error. A rule checked before the write can still lose a race; the index is the
+  backstop. The adapter checks the index by name (`error.constraint`, exported from
+  `db/schema.ts`): a violation of any other index is a bug, and is thrown.
 
 A `Result` type is an accepted alternative for a team that prefers it. If a team chooses it, the
 choice is recorded in an ADR and applied to every module.
