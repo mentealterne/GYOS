@@ -46,34 +46,46 @@ What you add on top:
 - **The gap analysis is shown before any code:** what exists, what's missing, which files will
   change, which promises and decisions are involved. The user says go.
 - **Pending promises.** If the feature is one of the promises listed as not built yet in the
-  skill's `scenarios.md`, it moves from that list into a `.feature` file (BDD + TDD) or into the
-  promises table.
+  skill's `scenarios.md`, it leaves that list.
+  - **With BDD + TDD,** it becomes a `.feature` file, plus a row in the `scenarios.md` index.
+  - **With the other styles,** it becomes a promise written in `scenarios.md`, as Given / When /
+    Then with real values.
 - **The example area.** If the module still carries the template's example area (its
   `state-of-the-code.md` says so), the first real feature replaces it: remove the example's code,
-  scenarios, tests and table, and generate a migration that drops the table only if no deploy has
-  ever run it. Otherwise follow the module standard's expand-only rule. Close the
-  `state-of-the-code.md` entry and its todo.
+  scenarios, tests and schema table. For the database, **ask the user whether any deploy has run
+  this module's migrations.** Never guess. Then follow the module standard
+  (`docs/standards/module.md`):
+  - **no deploy yet:** delete the module's `drizzle/` folder and run `db:generate`, so the history
+    starts from the real schema;
+  - **already deployed:** migrations are expand-only. Leave the example table in place, unused,
+    and add a todo to drop it in a later deploy, once no running version reads it.
+
+  Then close the `state-of-the-code.md` entry and its todo. If `state-of-the-code.md` ends up
+  empty, delete it: the standard allows no empty files.
 - **Decisions taken on the way** are recorded as the skill's rules say, in the same change.
 
 ## 3. Work that spans contexts
 
 1. Each context's part goes through its own skill, in the order the dependency runs: upstream
    first.
-2. **The junction belongs to neither.** Name it, and settle its owner before implementing (default:
-   the host's composition root, `apps/api/src/modules.ts`). If it's new:
-   - write its ADR from `${CLAUDE_PLUGIN_ROOT}/templates/docs/decisions/junction.md`, in the
-     format of `docs/decisions/README.md`;
+2. **The junction belongs to neither.** Name it, say it belongs to neither context, and **ask the
+   user who owns it** before implementing. The default is the host's composition root, where
+   `apps/api` builds the modules and wires one module's port to another.
+3. **If the junction is new,** record it with `/gyos:decide`'s steps (invoke the `gyos:decide`
+   skill). They ask the user for the reasons, the cost and the alternatives, never fill them in,
+   and take the next free ADR number. The ADR starts from
+   `${CLAUDE_PLUGIN_ROOT}/templates/docs/decisions/junction.md`. Then:
    - link it from the map's Junctions table;
    - add it to each context's Active table.
-3. A change to something a context publishes (an operation, a contract type, a published view)
-   applies that context's confront rule, even when the request came from the other side.
+4. **A change to something a context publishes** applies that context's confront rule, even when
+   the request came from the other side. That covers an operation, a contract type, a published
+   view, or an event.
 
 ## 4. Close
 
 **Verify for real,** and report what each command printed:
-- `pnpm typecheck`;
-- `pnpm test:unit`, `pnpm test:scenarios`;
-- `pnpm test:integration`, if adapters or migrations changed;
+- every tier in the `testing.md` of each skill you worked in, with the commands it gives;
+- `pnpm typecheck` across the workspace;
 - `node scripts/gyos-doctor.ts`, if it exists.
 
 **Summarize:**
