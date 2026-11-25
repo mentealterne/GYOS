@@ -90,7 +90,7 @@ something that is true of *this* context and of no other.
 
 | It may point at | Created by |
 | --- | --- |
-| `docs/standards/module.md` | `/gyos:init`, copied from the plugin's `standards/module.md` |
+| `docs/standards/module.md`, `docs/standards/host.md` | `/gyos:init`, copied from the plugin's `standards/` |
 | `docs/standards/domain-skill.md` | `/gyos:init`, copied from this file without its GYOS-only parts |
 | `docs/context-map.md` | `/gyos:discover`: one entry per context with the Bounded Context Canvas fields, Open questions included, plus a Junctions section |
 | `docs/decisions/README.md` | `/gyos:init`: the decision format (ids, entry shape, Confirmation syntax), and nothing else |

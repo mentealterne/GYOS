@@ -60,6 +60,10 @@ What you add on top:
   - **already deployed:** migrations are expand-only. Leave the example table in place, unused,
     and add a todo to drop it in a later deploy, once no running version reads it.
 
+  - **The Gherkin tooling, unless the style is BDD + TDD.** With "TDD only" or "pragmatic"
+    (`docs/decisions/0002-testing-style.md`), the example's `features/`, `cucumber.mjs`,
+    `tsx-register.js`, the `test:scenarios` script and the Cucumber dependencies go too.
+
   Then close the `state-of-the-code.md` entry and its todo. If `state-of-the-code.md` ends up
   empty, delete it: the standard allows no empty files.
 - **Decisions taken on the way** are recorded as the skill's rules say, in the same change.

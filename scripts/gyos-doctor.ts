@@ -10,7 +10,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** Bumped with every change to the checks; /gyos:doctor compares a product's copy with the plugin's. */
-export const DOCTOR_VERSION = "3";
+export const DOCTOR_VERSION = "5";
 
 export type Level = "fail" | "warn" | "note";
 
@@ -514,7 +514,9 @@ function checkArchitecture(ctx: Context, name: string, file: string): void {
   for (const item of items) {
     if (!/Trap:/i.test(item.text) && !/retired/i.test(item.text)) add("fail", file, `invariant C${item.number} has no trap`);
   }
-  if (/\b20\d\d-\d\d-\d\d\b/.test(text)) add("warn", file, "contains a date: decisions belong in development/decisions.md, not in the contract");
+  if (/\b20\d\d-\d\d-\d\d\b/.test(text.replace(/<!--[\s\S]*?-->/g, ""))) {
+    add("warn", file, "contains a date: decisions belong in development/decisions.md, not in the contract");
+  }
 
   // The trace: every path in it exists, or the trace is marked unverified.
   const start = text.indexOf("The trace");
@@ -552,12 +554,15 @@ function reportTokens(dir: string, skillText: string, add: Add): void {
   const active = Math.round(decisions.slice(0, Math.max(0, decisions.search(/^##\s+Log\b/m))).length / 4);
   const always = size("glossary.md");
   const change = always + size("architecture.md") + size("workflow.md") + size("testing.md") + active;
+  // An Inquiry loads the glossary plus what the question needs: at most, the largest other file.
+  const others = ["architecture.md", "workflow.md", "testing.md", "scenarios.md", "state-of-the-code.md", "guardrails.md"];
+  const inquiryMax = always + Math.max(0, ...others.map(size));
   const stated = (label: string) =>
     Number(new RegExp(`\\|\\s*${label}\\s*\\|[^\\n]*?\\|\\s*~?(\\d[\\d,]*)\\s*tokens`, "i").exec(skillText)?.[1]?.replace(/,/g, "") ?? NaN);
   const statedAlways = stated("Always");
   const statedChange = stated("Change");
   const off = (measured: number, claimed: number) => Number.isFinite(claimed) && Math.abs(measured - claimed) > Math.max(200, measured * 0.25);
-  add("note", join(dir, "SKILL.md"), `tokens measured: always ${always}, change ${change}`);
+  add("note", join(dir, "SKILL.md"), `tokens measured: always ${always}, inquiry ${always}–${inquiryMax}, change ${change}`);
   if (off(always, statedAlways) || off(change, statedChange)) {
     add("warn", join(dir, "SKILL.md"), `the load plan states always ${statedAlways}, change ${statedChange}; measured ${always} and ${change}`);
   }

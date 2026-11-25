@@ -1,15 +1,18 @@
 # Standard: domain module
 
-The shape of every domain module GYOS generates, and the rules it keeps. GYOS's templates, the
-`/gyos:context` skill and `/gyos:doctor` all follow this file. Change the standard here first,
-then the templates. The reasons and sources behind it are in `knowledge/ports-and-adapters.md`,
-`knowledge/data-and-migrations.md`, `knowledge/modular-monolith.md` and
-`knowledge/packaging-and-build.md`.
+The shape of every domain module GYOS generates, and the rules it keeps. A statement marked
+**verified** was run by GYOS's template verification, which scaffolds modules and the host of
+[`host.md`](host.md) into a throwaway workspace and runs every check below on them; it wasn't only
+read in documentation.
 
-The template that implements this standard is `templates/module`, and
-`scripts/verify-templates.ts` proves it: it scaffolds two modules into a throwaway workspace, with
-the host of [`host.md`](host.md) that composes them, and runs every check below on them, in CI
-too. A statement here marked **verified** was run that way, not only read in documentation.
+<!-- gyos-only:start -->
+GYOS's templates, the `/gyos:context` skill and `/gyos:doctor` all follow this file. Change the
+standard here first, then the templates. The reasons and sources behind it are in
+`knowledge/ports-and-adapters.md`, `knowledge/data-and-migrations.md`,
+`knowledge/modular-monolith.md` and `knowledge/packaging-and-build.md`. The template that
+implements it is `templates/module`, and `scripts/verify-templates.ts` runs the verification, in CI
+too.
+<!-- gyos-only:end -->
 
 The shape is taken from a production module that went through a long series of changes and
 schema migrations: an identity module consumed in-process by several apps. Its rules are
@@ -30,7 +33,7 @@ A module is the code of **one bounded context**:
 - It is an **ESM package that ships a build**, compiled with `tsc`.
 - It **owns one Postgres schema**, named after it, and migrates that schema itself. A
   multi-word name gives a schema such as `"case-management"`: Drizzle always quotes it, and
-  hand-written SQL must too (verified on every run: `scripts/verify-templates.ts` scaffolds
+  hand-written SQL must too (verified on every run: GYOS's template verification scaffolds
   `case-management`).
 - Apps consume it **in-process**, through its public entry points. There is no HTTP between
   modules: the product is a modular monolith.
@@ -86,7 +89,7 @@ module. A new module starts with one area, named after its main concept. This st
 "area", not "subdomain", because GYOS's knowledge base uses "subdomain" in the strategic DDD
 sense (core, supporting, generic).
 
-**The scaffolder names the first area.** `scripts/new-module.ts <workspace> <name> --area
+**The scaffolder names the first area.** GYOS's scaffolder, which `/gyos:init` and `/gyos:context` run, takes `new-module.ts <workspace> <name> --area
 <plural> --entity <singular>` (kebab-case; `items` and `item` when left out) renames every form
 of the template's example area, in one pass with the module's name:
 
@@ -97,7 +100,7 @@ of the template's example area, in one pass with the module's name:
 | SQL names, in `src/db/schema.ts`, the tests and `drizzle/` | the table `treatment_plans`, its index `treatment_plans_tenant_id_name_key` |
 | Prose: comments, test names, log lines, `.feature` files and their steps | "a treatment plan", "Treatment plans" |
 
-`scripts/template-names.ts` holds the rules and says how each place is recognised. A name that
+GYOS's scaffolder holds the rules and says how each place is recognised. A name that
 would clash with one the template already uses (`tenant`, `name`, `Error`, a reserved word,
 `eval` and `arguments` included) is refused, and so are two files that would land on one path,
 and the area `other-area`, which the layer tests make up as a second area.
@@ -105,7 +108,7 @@ and the area `other-area`, which the layer tests make up as a second area.
 **The migration is renamed as text, not regenerated.** drizzle-kit is not installed when the
 scaffolder runs, and the module's name is already renamed in the same files. The renamed
 `0000_init` passes `drizzle-kit check`, and `db:generate` finds nothing to do (verified on every
-run: `scripts/verify-templates.ts` scaffolds `case-management` with `treatment-plans` and `sales`
+run: GYOS's template verification scaffolds `case-management` with `treatment-plans` and `sales`
 with `orders`, runs every test of both, and checks that no `item` is left in them or in their
 routes).
 
@@ -337,7 +340,7 @@ through the config.
 - **Invalid input** is the `ZodError` thrown by the controller's parse. The root entry exports
   `is<Name>InputError(error)` (`module-controllers/input-error.ts`), an `instanceof` check against
   the module's own zod, so a host maps invalid input without importing zod or knowing the module
-  uses it. The host's route files hand it to the error mapping, and `scripts/verify-templates.ts`
+  uses it. The host's route files hand it to the error mapping, and GYOS's template verification
   sends the running host invalid input, from source and from the build (verified).
 - **The host maps them** to HTTP statuses, job outcomes or CLI exit codes. The module never
   produces an HTTP error. Over HTTP, invalid input is a 400 and each refusal code a 404, 409 or
@@ -473,7 +476,7 @@ session, so `ready()` and `db:migrate` need a direct connection or a pooler in s
 pooler in transaction mode (PgBouncer's `pool_mode=transaction`, the pooled connection strings of
 Neon and Supabase) can hand each transaction to a different server connection, and doesn't
 support session-level advisory locks. The pool a host passes as `db` therefore reaches Postgres
-directly or through a session-mode pooler; the sources are in `knowledge/data-and-migrations.md`.
+directly or through a session-mode pooler; the sources are in the GYOS plugin's knowledge base.
 
 The `db:migrate` script, `scripts/migrate.ts` at the module's root, runs the same function by
 hand. It lives outside `src/` because it reads `DATABASE_URL`, and runs with Node's type
@@ -637,7 +640,7 @@ so turning it on would switch them too. Each tool turns `@gyos/source` on in its
   `turbo.json` adds `$TURBO_ROOT$/modules/**` and `$TURBO_ROOT$/apps/**` to the inputs of
   `test:unit`, minus what it skips (`node_modules`, `dist`, `reports`, `.turbo`, `coverage`).
 - `tsconfig.base.json` is a `globalDependencies` entry: a change to it invalidates every task.
-- `scripts/verify-templates.ts` breaks a dependency, then a module, after a first run, and
+- GYOS's template verification breaks a dependency, then a module, after a first run, and
   expects the cached task to fail.
 - esbuild emits no declarations and no type check. tsup is unmaintained.
 
@@ -680,7 +683,7 @@ objects with union types, and factory functions rather than classes. This keeps 
 runnable by Node's type stripping, and stable since Node 24.12. The dev loop runs
 `node --conditions=@gyos/source apps/api/src/main.ts` with no build step: Node follows pnpm's
 workspace symlink to the module's real path, outside `node_modules`, and strips its types
-(verified on Node 24.6: `scripts/verify-templates.ts` runs the host template this way, with two
+(verified on Node 24.6: GYOS's template verification runs the host template this way, with two
 modules, and sends it HTTP requests).
 
 **[version] Node 24 LTS** is the baseline. Cucumber 13 needs Node 22, 24 or ≥ 26, and the
@@ -708,7 +711,7 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
   database's name has `test` or `verify` as a word of its own, at an end or set off by `_` or `-`
   (`product_test`, `test-orders`, `gyos_verify_1`; not `latest`, `contest` or `testing`): a test
   run that drops a schema must not be one mistyped variable away from real data. A unit test
-  checks the refusal, and `scripts/verify-templates.ts` runs it on a database called `latest`.
+  checks the refusal, and GYOS's template verification runs it on a database called `latest`.
 - **One set of in-memory adapters** in `features/support/` serves both the scenarios and the unit
   tests, so a phrase like "Giulia is an HR director" means the same thing everywhere. They keep
   the same promises as the real adapters, unique indexes and transactions included.

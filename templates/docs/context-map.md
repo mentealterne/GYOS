@@ -36,8 +36,8 @@ A field the interview didn't cover holds `—` or an open question, never a fill
 - **Invariants:**
   - <what must never happen, and the trap it avoids>
 - **Examples:**
-  - <Given … When … Then …, with real values. `/gyos:init` turns these into .feature files
-    (BDD + TDD) or promises in the skill's scenarios.md>
+  - <Given … When … Then …, with real values. `/gyos:init` moves these into the skill's
+    scenarios.md as promises not built yet>
 - **Assumptions:**
   - <inferred | speculative>: <…>
 - **Verification metrics:** <how you'd know this context is doing its job>
