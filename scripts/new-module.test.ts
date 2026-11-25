@@ -8,8 +8,9 @@ import assert from "node:assert/strict";
 import { spawnSync } from "node:child_process";
 import { cpSync, existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { join, posix, win32 } from "node:path";
 import { afterEach, beforeEach, describe, it } from "node:test";
+import { isInside } from "./new-module.ts";
 
 const REPO = join(import.meta.dirname, "..");
 const SCRIPT = join(REPO, "scripts", "new-module.ts");
@@ -74,6 +75,39 @@ describe("new-module.ts --host", () => {
     assert.notEqual(again.status, 0);
     assert.match(again.output, /expected the marker "\/\/ gyos:modules:type" once, found it 0 times/);
   });
+
+  it("refuses to render routes for another area than the module's own, and writes nothing", () => {
+    assert.equal(scaffold("sales", "--area", "orders", "--entity", "order").status, 0);
+    const before = ["package.json", "src/modules.ts", "src/http/routes/index.ts"].map(read);
+
+    const refused = scaffold("sales", "--host", HOST);
+    assert.notEqual(refused.status, 0);
+    assert.match(refused.output, /exports "\.\/orders", not "\.\/items"/);
+    assert.match(refused.output, /--area orders --entity/);
+    const wrongEntity = scaffold("sales", "--area", "orders", "--entity", "purchase", "--host", HOST);
+    assert.notEqual(wrongEntity.status, 0);
+    assert.match(wrongEntity.output, /no createPurchaseInputSchema/);
+    assert.deepEqual(["package.json", "src/modules.ts", "src/http/routes/index.ts"].map(read), before);
+    assert.ok(!existsSync(hostFile("src/http/routes/sales.ts")));
+
+    const added = scaffold("sales", "--area", "orders", "--entity", "order", "--host", HOST);
+    assert.equal(added.status, 0, added.output);
+    assert.match(read("src/http/routes/sales.ts"), /router\.get\("\/orders"/);
+  });
+
+  it("checks nothing about the area when the routes are there already", () => {
+    assert.equal(scaffold("sales", "--area", "orders", "--entity", "order", "--host", HOST).status, 0);
+    const again = scaffold("sales", "--host", HOST);
+    assert.equal(again.status, 0, again.output);
+    assert.match(again.output, /nothing to change/);
+  });
+
+  it("refuses a host outside the workspace", () => {
+    const outside = scaffold("billing", "--host", "../elsewhere");
+    assert.notEqual(outside.status, 0);
+    assert.match(outside.output, /expected a folder inside the workspace/);
+    assert.ok(!existsSync(join(workspace, "modules", "billing")));
+  });
 });
 
 describe("new-module.ts: names it refuses", () => {
@@ -100,5 +134,21 @@ describe("new-module.ts: names it refuses", () => {
     const refused = scaffold("sales", "--area", "other-area", "--entity", "other-thing");
     assert.notEqual(refused.status, 0);
     assert.match(refused.output, /the second area the layer tests make up/);
+  });
+});
+
+describe("isInside", () => {
+  it("knows a folder inside the workspace from one outside it, with POSIX paths", () => {
+    assert.equal(isInside("/w", "/w/apps/api", posix), true);
+    assert.equal(isInside("/w", "/w/..apps", posix), true);
+    assert.equal(isInside("/w", "/w", posix), false);
+    assert.equal(isInside("/w", "/elsewhere/api", posix), false);
+    assert.equal(isInside("/w", "/", posix), false);
+  });
+
+  it("and with Windows paths, another drive included", () => {
+    assert.equal(isInside("C:\\w", "C:\\w\\apps\\api", win32), true);
+    assert.equal(isInside("C:\\w", "C:\\elsewhere\\api", win32), false);
+    assert.equal(isInside("C:\\w", "D:\\w\\apps\\api", win32), false);
   });
 });

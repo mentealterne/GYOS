@@ -29,9 +29,12 @@
 // host file that already imports the module ("@module/<name>" in src/modules.ts, ./<name>.ts in
 // src/http/routes/index.ts) gets none of its lines again, even edited by hand since; a route file
 // already there is kept as it is; and a module that exists is not scaffolded again (with --host
-// only; without it, that is an error).
+// only; without it, that is an error). For a module that exists, routes are rendered only with
+// its own area and entity: one its package.json doesn't export, or whose vocabulary has no
+// create<Entity>InputSchema, is refused before anything is written.
 // No dependencies. Runs with Node's type stripping (Node 24), so erasable syntax only.
 import { existsSync, mkdirSync, readdirSync, readFileSync, statSync, writeFileSync } from "node:fs";
+import * as nodePath from "node:path";
 import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath } from "node:url";
 import {
@@ -201,6 +204,57 @@ interface HostPlan {
   writes: Map<string, string>;
   /** Route files already in the host: they are the team's now, and stay as they are. */
   kept: string[];
+  /** Route files rendered from templates/host-module, named after the area and its entity. */
+  rendered: string[];
+}
+
+/**
+ * Whether `path` is inside `root`, and not `root` itself. On Windows, relative() between two
+ * drives gives an absolute path, so that counts as outside too. `path` is node:path by default;
+ * a test passes node:path's win32 or posix flavour.
+ */
+export function isInside(
+  root: string,
+  path: string,
+  { relative: relativeTo, isAbsolute, sep: separator }: Pick<typeof nodePath, "relative" | "isAbsolute" | "sep"> = nodePath,
+): boolean {
+  const inner = relativeTo(root, path);
+  return inner !== "" && inner !== ".." && !inner.startsWith(`..${separator}`) && !isAbsolute(inner);
+}
+
+/**
+ * For a module that exists already: why its routes can't be rendered with this area and entity,
+ * or undefined when they can. They must be the module's own: its package.json exports the area
+ * ("./<area>"), and that vocabulary file has the entity's create<Entity>InputSchema, which the
+ * routes' test parses with.
+ */
+function areaMismatch(workspace: string, names: TemplateNames): string | undefined {
+  const { module, area, entity } = names;
+  const dir = join(workspace, "modules", module.kebab);
+  const packageJson = JSON.parse(readFileSync(join(dir, "package.json"), "utf8")) as { exports?: Record<string, unknown> };
+  const exports = packageJson.exports ?? {};
+  const areas = Object.keys(exports)
+    .filter((key) => key !== "." && key !== "./contracts")
+    .map((key) => key.replace(/^\.\//, ""));
+  const hint = areas.length === 1 ? ` Run it with the area it has: --area ${areas[0]} --entity <its singular>.` : "";
+  if (!areas.includes(area.kebab)) {
+    const found = areas.length === 0 ? "no area" : areas.map((name) => `"./${name}"`).join(", ");
+    return (
+      `modules/${module.kebab} exists, and its package.json exports ${found}, not "./${area.kebab}": ` +
+      `routes rendered for "${area.kebab}" would not compile.${hint}`
+    );
+  }
+  const entry = exports[`./${area.kebab}`];
+  const source = typeof entry === "object" && entry !== null ? (entry as Record<string, unknown>)["@gyos/source"] : undefined;
+  const vocabulary = typeof source === "string" ? join(dir, source) : undefined;
+  const schema = `create${entity.pascal}InputSchema`;
+  if (vocabulary === undefined || !existsSync(vocabulary) || !readFileSync(vocabulary, "utf8").includes(schema)) {
+    return (
+      `modules/${module.kebab} exports "./${area.kebab}", but it has no ${schema}: is "${entity.kebab}" its entity? ` +
+      "Pass the --entity it was scaffolded with."
+    );
+  }
+  return undefined;
 }
 
 /** The index of the line that holds `marker`, which must be there exactly once. */
@@ -240,10 +294,10 @@ function importsFrom(text: string, specifier: string): boolean {
 
 function planHost(workspace: string, hostDir: string, names: TemplateNames): HostPlan {
   const host = resolve(workspace, hostDir);
-  const hostPath = relative(workspace, host);
-  if (hostPath === "" || hostPath.startsWith("..") || hostPath.startsWith(sep)) {
+  if (!isInside(workspace, host)) {
     throw new Error(`--host ${hostDir}: expected a folder inside the workspace, such as apps/api`);
   }
+  const hostPath = relative(workspace, host);
   const missing = Object.values(HOST_FILES).filter((file) => !existsSync(join(host, file)));
   if (missing.length > 0) {
     throw new Error(
@@ -302,12 +356,17 @@ function planHost(workspace: string, hostDir: string, names: TemplateNames): Hos
 
   // The route file and its test, rendered like the module. One that exists is the team's now.
   const kept: string[] = [];
+  const rendered: string[] = [];
   for (const { file, path } of templateFiles(HOST_TEMPLATE_DIR)) {
     const target = renderPath(file, names);
-    if (existsSync(join(host, target))) kept.push(where(target));
-    else writes.set(where(target), renderText(file, readFileSync(path, "utf8"), names));
+    if (existsSync(join(host, target))) {
+      kept.push(where(target));
+    } else {
+      writes.set(where(target), renderText(file, readFileSync(path, "utf8"), names));
+      rendered.push(where(target));
+    }
   }
-  return { host: hostPath, writes, kept };
+  return { host: hostPath, writes, kept, rendered };
 }
 
 function applyPlan(workspace: string, plan: HostPlan): void {
@@ -392,6 +451,11 @@ function main(args: readonly string[]): void {
 
   // Everything the host needs is checked before the first file is written.
   const plan = options.host === undefined ? undefined : planHost(workspace, options.host, names);
+  // A module that exists has its own area: routes rendered for another wouldn't compile.
+  if (exists && plan !== undefined && plan.rendered.length > 0) {
+    const mismatch = areaMismatch(workspace, names);
+    if (mismatch !== undefined) throw new Error(mismatch);
+  }
 
   if (exists) {
     console.log(`@module/${module.kebab} already exists in modules/${module.kebab}: adding it to the host only.`);
@@ -433,9 +497,11 @@ function main(args: readonly string[]): void {
   );
 }
 
-try {
-  main(process.argv.slice(2));
-} catch (error) {
-  console.error(error instanceof Error ? error.message : String(error));
-  process.exitCode = 1;
+if (import.meta.main) {
+  try {
+    main(process.argv.slice(2));
+  } catch (error) {
+    console.error(error instanceof Error ? error.message : String(error));
+    process.exitCode = 1;
+  }
 }
