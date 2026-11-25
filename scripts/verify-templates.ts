@@ -10,7 +10,8 @@
 // and the integration tests.
 //
 // DATABASE_URL must reach a Postgres where the user may create databases: the database steps run
-// in a new database, created here and dropped at the end, so they start from an empty database.
+// in a new database, gyos_verify_<time>_<pid>, created here and dropped at the end, so they start
+// from an empty database. The integration tests get it as TEST_DATABASE_URL.
 // --no-db skips them (reported as skipped). --keep keeps the temp directory.
 // No dependencies. Runs with Node's type stripping (Node 24).
 import { spawnSync } from "node:child_process";
@@ -269,7 +270,13 @@ function verify(): void {
   if (!run("db:check", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:check"])) return;
   if (!checkMigrationsMatchSchema()) return;
 
-  const databaseSteps = ["host from source", "host from build", "db:migrate", "test:integration"];
+  const databaseSteps = [
+    "host from source",
+    "host from build",
+    "db:migrate",
+    "test:integration refuses a database not named for tests",
+    "test:integration",
+  ];
   const adminUrl = process.env.DATABASE_URL;
   if (!withDatabase) {
     databaseSteps.forEach(skip);
@@ -292,7 +299,18 @@ function verify(): void {
   if (!run("host from source", process.execPath, ["--conditions=@gyos/source", "src/main.ts"], { cwd: smoke, env })) return;
   if (!run("host from build", process.execPath, ["dist/main.js"], { cwd: smoke, env })) return;
   if (!run("db:migrate", "pnpm", ["--filter", "@module/billing", "run", "db:migrate"], { env })) return;
-  run("test:integration", "pnpm", ["run", "test:integration"], { env });
+  // The integration tests wipe their module's schema: they read TEST_DATABASE_URL, not
+  // DATABASE_URL, and refuse a database whose name doesn't contain "test" or "verify".
+  const notForTests = new URL(adminUrl);
+  notForTests.pathname = "/postgres";
+  const refused = runExpectingFailure(
+    "test:integration refuses a database not named for tests",
+    "pnpm",
+    ["--filter", "@module/billing", "run", "test:integration"],
+    { env: { TEST_DATABASE_URL: notForTests.toString() }, output: /only run on a database whose name contains/ },
+  );
+  if (!refused) return;
+  run("test:integration", "pnpm", ["run", "test:integration"], { env: { TEST_DATABASE_URL: databaseUrl } });
 }
 
 try {

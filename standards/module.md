@@ -548,7 +548,7 @@ so turning it on would switch them too. Each tool turns `@gyos/source` on in its
 - It emits JavaScript and declarations, file for file.
 - Turborepo recommends it for internal packages and advises against project references.
 - In `turbo.json`, `build` depends on `^build` and outputs `dist/**`. `test:integration` is not
-  cached and lists `DATABASE_URL` in `passThroughEnv`: Turborepo 2 hides undeclared environment
+  cached and lists `TEST_DATABASE_URL` in `passThroughEnv`: Turborepo 2 hides undeclared environment
   variables from tasks.
 - **`typecheck`, `test:unit` and `test:scenarios` depend on a `transit` task** that depends on
   `^transit` and matches no script. Through `@gyos/source` a package compiles its dependencies'
@@ -616,7 +616,7 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
 | **Unit** | `src/tests/unit/` | In-memory ports, no database | Domain rules, use cases, controller parsing, config validation |
 | **Architecture** | `src/tests/unit/architecture/` | The source's imports | The layer rules above; contracts and ports hold types only; no `process.env`; the exports; the migrations folder resolves |
 | **Scenarios** | `features/` | The controllers, with the in-memory adapters from `features/support/` | The product promises, in the language of the people who use it |
-| **Integration** | `src/tests/integration/` | Adapters on a real Postgres (`DATABASE_URL`) | Queries, mapping, the unique indexes, migrations (two pools at once included), the published views |
+| **Integration** | `src/tests/integration/` | Adapters on a real, throwaway Postgres (`TEST_DATABASE_URL`) | Queries, mapping, the unique indexes, migrations (two pools at once included), the published views |
 
 - **Two Vitest configs.** `vitest.config.ts` includes only `src/tests/unit/**/*.test.ts`, so
   `test:unit` never needs a database; `vitest.config.integration.ts` includes only
@@ -624,7 +624,11 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
   (`fileParallelism: false`), because they share the module's schema.
 - **The integration tests isolate themselves by schema.** They drop and recreate the module's own
   schema and bookkeeping table, never anything else, so the modules of a workspace can run theirs
-  at the same time on one database. `DATABASE_URL` points at a throwaway database.
+  at the same time on one database.
+- **They read `TEST_DATABASE_URL`, never `DATABASE_URL`,** and refuse to run unless the
+  database's name contains `test` or `verify`: a test run that drops a schema must not be one
+  mistyped variable away from real data. A unit test checks the refusal, and
+  `scripts/verify-templates.ts` runs it on a database called `postgres`.
 - **One set of in-memory adapters** in `features/support/` serves both the scenarios and the unit
   tests, so a phrase like "Giulia is an HR director" means the same thing everywhere. They keep
   the same promises as the real adapters, unique indexes included.

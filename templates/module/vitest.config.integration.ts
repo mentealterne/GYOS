@@ -1,4 +1,5 @@
-// Integration tests: the adapters and the migrations against a real Postgres (DATABASE_URL).
+// Integration tests: the adapters and the migrations against a real, throwaway Postgres
+// (TEST_DATABASE_URL, see src/tests/integration/database.ts).
 // Files run one at a time, because they share this module's schema.
 import { defineConfig } from "vitest/config";
 

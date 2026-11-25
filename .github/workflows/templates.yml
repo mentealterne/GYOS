@@ -26,7 +26,8 @@ jobs:
           --health-timeout 5s
           --health-retries 10
     env:
-      # A superuser on a throwaway server: the verification creates and drops its own database.
+      # A superuser on a throwaway server: the verification creates and drops its own database,
+      # gyos_verify_<time>_<pid>, and gives it to the integration tests as TEST_DATABASE_URL.
       DATABASE_URL: postgres://postgres:postgres@localhost:5432/postgres
     steps:
       - uses: actions/checkout@v7
