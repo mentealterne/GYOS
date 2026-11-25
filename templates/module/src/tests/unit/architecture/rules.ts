@@ -329,9 +329,11 @@ const isEnv = (name: ts.PropertyName | ts.ModuleExportName | undefined): boolean
   name !== undefined && (ts.isIdentifier(name) || ts.isStringLiteral(name)) && name.text === "env";
 
 /**
- * Whether a file reads the environment, however it is spelled: `process.env`, `process["env"]`,
- * `globalThis.process.env`, `const { env } = process`, `import { env } from "node:process"`, or
- * `.env` on a default or namespace import of `node:process`.
+ * Whether a file reads the environment in a spelling this check knows: `process.env`,
+ * `process["env"]`, `globalThis.process.env`, `const { env } = process`,
+ * `import { env } from "node:process"`, or `.env` on a default or namespace import of
+ * `node:process`. It reads the syntax only: an alias (`const p = process; p.env`), a computed key
+ * or `require("process")` gets past it.
  */
 function readsEnvironment(source: ts.SourceFile): boolean {
   // Local names bound to the process object: the global, and default or namespace imports of it.

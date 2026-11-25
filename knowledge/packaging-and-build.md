@@ -124,7 +124,8 @@ How lint gets TypeScript 6 is **not settled yet**; see the module standard.
   run with `node` directly.
 - **The no-build dev loop** (`node --conditions=@gyos/source apps/api/src/main.ts`) depends on
   stripping working through pnpm's workspace symlinks. They resolve to real paths, outside
-  `node_modules`, so it should work. That is **unverified** until the walking skeleton runs it.
+  `node_modules`, so it works: verified on Node 24.6 (2026-11-25), where
+  `scripts/verify-templates.ts` runs the host template this way with two modules.
 
 ---
 

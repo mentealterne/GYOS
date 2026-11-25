@@ -10,7 +10,7 @@ import { existsSync, readdirSync, readFileSync, statSync } from "node:fs";
 import { dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 
 /** Bumped with every change to the checks; /gyos:doctor compares a product's copy with the plugin's. */
-export const DOCTOR_VERSION = "2";
+export const DOCTOR_VERSION = "3";
 
 export type Level = "fail" | "warn" | "note";
 
@@ -125,6 +125,15 @@ function anchorsOf(file: string): Set<string> {
   }
   anchorCache.set(file, anchors);
   return anchors;
+}
+
+/**
+ * Whether the host's tenant.ts reads the tenant from a request header: the x-tenant-id placeholder
+ * GYOS's host template ships, named or through its TENANT_HEADER constant, outside comments.
+ */
+export function readsTenantFromHeader(source: string): boolean {
+  const code = source.replace(/\/\*[\s\S]*?\*\//g, "").replace(/(^|[^:])\/\/.*$/gm, "$1");
+  return /(?:\b(?:get|header)\(|\bheaders\s*\[)\s*(?:TENANT_HEADER\b|["'`]x-tenant-id["'`])/i.test(code);
 }
 
 function isInside(root: string, path: string): boolean {
@@ -334,6 +343,17 @@ export function diagnose(root: string): Finding[] {
         add("fail", join(modulesDir, name), `module "${name}" has no domain skill in .claude/skills/${name}/`);
       }
     }
+  }
+
+  // The host's tenant placeholder: a warning, not a failure, because development needs it.
+  const tenantFile = join(root, "apps", "api", "src", "http", "tenant.ts");
+  if (existsSync(tenantFile) && readsTenantFromHeader(read(tenantFile))) {
+    add(
+      "warn",
+      tenantFile,
+      "the tenant of a request still comes from the x-tenant-id header, a development placeholder that is not " +
+        "authentication: any caller can act for any tenant. Derive it from the authenticated session before production",
+    );
   }
 
   // Built once: every context's invariants and scenario names.

@@ -1,0 +1,16 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "./src",
+    "outDir": "./dist",
+    // The modules resolve to their build (dist/*.d.ts), as they do in production, and those
+    // declarations are checked too: a module whose build doesn't typecheck fails here.
+    "customConditions": [],
+    "skipLibCheck": false,
+    // An app ships no declarations.
+    "declaration": false,
+    "declarationMap": false
+  },
+  "include": ["src"],
+  "exclude": ["src/tests"]
+}
