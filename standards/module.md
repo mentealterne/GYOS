@@ -35,7 +35,8 @@ modules/<name>/
 ├── drizzle.config.ts       this module's schema only
 ├── drizzle/                generated SQL migrations; shipped with the package
 ├── vitest.config.ts
-├── cucumber.json
+├── cucumber.mjs            loads tsx-register.js, then features/support and features/steps
+├── tsx-register.js
 ├── features/               scenarios: *.feature, steps/, support/ (world, hooks, in-memory adapters)
 └── src/
     ├── index.ts            create<Name>Module(config): the composition root
@@ -176,6 +177,14 @@ is not an instance of the copy in `dist/contracts.js`.
   `package.json`, and receives the instance through its config.
 - **Always:** no cycles. The architecture tests check every one of these rules.
 
+The compiler is the first line of enforcement:
+- TypeScript resolves with `moduleResolution: "bundler"` or `"nodenext"`, so `exports` are
+  honoured and a deep import fails.
+- tsconfig `paths` may point only into the module's own `src/`, never into another package,
+  because `paths` bypass `exports`.
+- pnpm doesn't hoist undeclared dependencies, so importing a module that isn't in `package.json`
+  fails.
+
 **M11. In a multi-tenant product, the tenant comes first.**
 Every use case takes the tenant id as its first argument.
 _Why:_ when the tenant is optional, a caller can forget the tenant filter; when it is the first
@@ -290,6 +299,15 @@ An architecture test fails on any view that is not in the set.
 
 **No transaction spans two modules.** A rule that has to change two modules is a junction. The
 host orchestrates it, through operations that are safe to retry.
+
+**When a reaction must survive a crash,** the emitting module writes the event to an outbox table
+in its own schema, in the same transaction as the change. A relay delivers it at least once, so
+handlers are idempotent: they record the ids they have processed. Fire-and-forget handlers lose
+events. The outbox arrives with the first junction that needs it, not before.
+
+**Database roles per module are optional hardening.** One Postgres role per module, with `USAGE`
+only on its own schema, makes the database refuse cross-schema access. It also means one
+connection per module. The default relies on the tests above and records that choice in an ADR.
 
 ---
 
