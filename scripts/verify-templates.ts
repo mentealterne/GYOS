@@ -4,15 +4,16 @@
 //
 // In a temp directory it copies templates/workspace, adds tooling/architecture, scaffolds two
 // modules with scripts/new-module.ts, adds a small host (apps/smoke) that composes both, installs,
-// and runs typecheck, build, the unit and architecture tests, the scenarios, drizzle-kit check,
-// the host from source and from the build, db:migrate and the integration tests.
+// and runs typecheck, build, the unit and architecture tests, the scenarios, drizzle-kit check
+// and generate (which must find nothing to do), the host from source and from the build,
+// db:migrate and the integration tests.
 //
 // DATABASE_URL must reach a Postgres where the user may create databases: the database steps run
 // in a new database, created here and dropped at the end, so they start from an empty database.
 // --no-db skips them (reported as skipped). --keep keeps the temp directory.
 // No dependencies. Runs with Node's type stripping (Node 24).
 import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
@@ -52,6 +53,22 @@ function run(step: string, command: string, args: string[], options: { cwd?: str
 
 function skip(step: string): void {
   results.push({ step, status: "skipped", seconds: 0 });
+}
+
+const journalLength = (moduleDir: string): number =>
+  (JSON.parse(readFileSync(join(moduleDir, "drizzle", "meta", "_journal.json"), "utf8")) as { entries: unknown[] })
+    .entries.length;
+
+/** drizzle-kit generate must find nothing to do: the shipped migrations match src/db/schema.ts. */
+function checkMigrationsMatchSchema(): boolean {
+  if (!run("db:generate", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:generate"])) return false;
+  const expected = journalLength(join(REPO, "templates", "module"));
+  const stale = MODULES.filter((name) => journalLength(join(root, "modules", name)) !== expected);
+  if (stale.length > 0) {
+    console.error(`  db:generate wrote a new migration for ${stale.join(", ")}: the template's drizzle/ is stale.`);
+  }
+  results.push({ step: "migrations match schema", status: stale.length === 0 ? "passed" : "failed", seconds: 0 });
+  return stale.length === 0;
 }
 
 function writeSmokeHost(): void {
@@ -177,6 +194,7 @@ function verify(): void {
     return;
   }
   if (!run("db:check", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:check"])) return;
+  if (!checkMigrationsMatchSchema()) return;
 
   const databaseSteps = ["host from source", "host from build", "db:migrate", "test:integration"];
   const adminUrl = process.env.DATABASE_URL;
