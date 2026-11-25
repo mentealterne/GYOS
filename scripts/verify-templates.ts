@@ -2,28 +2,35 @@
 //
 //   DATABASE_URL=postgres://user@localhost:5432/postgres node scripts/verify-templates.ts [--keep] [--no-db]
 //
-// In a temp directory it copies templates/workspace, adds tooling/architecture, scaffolds two
-// modules with scripts/new-module.ts, adds a small host (apps/smoke) that composes both, installs,
+// In a temp directory it copies templates/workspace, adds tooling/architecture and the host
+// (templates/apps/api), scaffolds two modules into both with scripts/new-module.ts --host, installs,
 // and runs typecheck, build, the unit and architecture tests, the scenarios, Turborepo's cache
-// invalidation (a change outside a package must not replay a cached pass), drizzle-kit check and
-// generate (which must find nothing to do), the host from source and from the build, db:migrate
-// and the integration tests.
+// invalidation (a change outside a package must not replay a cached pass), a consumer of the
+// modules' build, drizzle-kit check and generate (which must find nothing to do), the host from
+// source and from the build with HTTP requests against it and a graceful stop, db:migrate and the
+// integration tests.
 //
 // DATABASE_URL must reach a Postgres where the user may create databases: the database steps run
 // in a new database, gyos_verify_<time>_<pid>, created here and dropped at the end, so they start
 // from an empty database. The integration tests get it as TEST_DATABASE_URL.
 // --no-db skips them (reported as skipped). --keep keeps the temp directory.
 // No dependencies. Runs with Node's type stripping (Node 24).
-import { spawnSync } from "node:child_process";
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { spawn, spawnSync } from "node:child_process";
+import { randomUUID } from "node:crypto";
+import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const REPO = fileURLToPath(new URL("../", import.meta.url));
 // The second name has two words, so every run re-checks what the standard claims for them: a
-// quoted schema ("case-management"), PascalCase and UPPER_SNAKE identifiers.
+// quoted schema ("case-management"), PascalCase and UPPER_SNAKE identifiers, a camelCase field
+// in the host.
 const MODULES = ["billing", "case-management"] as const;
+/** Where the host is, in the workspace: what /gyos:init scaffolds, and what --host names. */
+const HOST = "apps/api";
+/** The path of each module's example area under its routes: /<module>/<area>. */
+const AREAS: Record<(typeof MODULES)[number], string> = { billing: "items", "case-management": "items" };
 
 const flags = new Set(process.argv.slice(2));
 const keep = flags.has("--keep");
@@ -37,9 +44,15 @@ interface Result {
 
 const results: Result[] = [];
 const root = mkdtempSync(join(tmpdir(), "gyos-verify-"));
+const host = join(root, HOST);
 const databaseName = `gyos_verify_${Date.now()}_${process.pid}`;
 let databaseUrl: string | undefined;
 const baseEnv: NodeJS.ProcessEnv = { ...process.env, TURBO_TELEMETRY_DISABLED: "1", DO_NOT_TRACK: "1" };
+
+function record(step: string, ok: boolean, started: number): boolean {
+  results.push({ step, status: ok ? "passed" : "failed", seconds: (performance.now() - started) / 1000 });
+  return ok;
+}
 
 function run(step: string, command: string, args: string[], options: { cwd?: string; env?: NodeJS.ProcessEnv } = {}): boolean {
   console.log(`\n▶ ${step}\n  $ ${[command, ...args].join(" ")}`);
@@ -49,10 +62,8 @@ function run(step: string, command: string, args: string[], options: { cwd?: str
     env: { ...baseEnv, ...options.env },
     stdio: "inherit",
   });
-  const ok = outcome.status === 0;
   if (outcome.error !== undefined) console.error(`  ${outcome.error.message}`);
-  results.push({ step, status: ok ? "passed" : "failed", seconds: (performance.now() - started) / 1000 });
-  return ok;
+  return record(step, outcome.status === 0, started);
 }
 
 /** Runs a command that must fail; when `output` is given, its output must match it too. */
@@ -75,9 +86,7 @@ function runExpectingFailure(
   const matched = options.output === undefined || options.output.test(output);
   if (!failed) console.error("  It succeeded.");
   if (failed && !matched) console.error(`  It failed, but its output doesn't match ${String(options.output)}.`);
-  const ok = failed && matched;
-  results.push({ step, status: ok ? "passed" : "failed", seconds: (performance.now() - started) / 1000 });
-  return ok;
+  return record(step, failed && matched, started);
 }
 
 function skip(step: string): void {
@@ -98,7 +107,7 @@ function checkCacheInvalidation(): boolean {
       file: join(root, "modules", first, "src", "index.ts"),
       edit: (text: string) =>
         text.replace(/(export function create\w+Module\(input: \w+ModuleConfig)\)/, "$1, broken: number)"),
-      args: ["exec", "turbo", "run", "typecheck", "--filter", "smoke"],
+      args: ["exec", "turbo", "run", "typecheck", "--filter", "api"],
       output: /TS2554/,
     },
     {
@@ -146,101 +155,53 @@ function checkMigrationsMatchSchema(): boolean {
   return stale.length === 0;
 }
 
-function writeSmokeHost(): void {
-  const dir = join(root, "apps", "smoke");
-  mkdirSync(join(dir, "src"), { recursive: true });
-  mkdirSync(join(dir, "scripts"), { recursive: true });
+/**
+ * What only this verification needs, written into the host's folder because its dependencies are
+ * installed there (none of it is part of the template): a tsconfig that checks GYOS's own scripts,
+ * the script that creates and drops the run's database, and a consumer of the modules' build.
+ */
+function writeVerificationFiles(): void {
+  const dir = join(host, "verify");
+  mkdirSync(dir, { recursive: true });
   const json = (value: unknown): string => `${JSON.stringify(value, null, 2)}\n`;
-  writeFileSync(
-    join(dir, "package.json"),
-    json({
-      name: "smoke",
-      version: "0.0.0",
-      private: true,
-      type: "module",
-      scripts: { build: "tsc -p tsconfig.build.json", typecheck: "tsc --noEmit" },
-      dependencies: { "@module/billing": "workspace:*", "@module/case-management": "workspace:*", pg: "catalog:" },
-      devDependencies: { "@types/node": "catalog:", "@types/pg": "catalog:", "@typescript/native": "catalog:" },
-    }),
-  );
-  writeFileSync(
-    join(dir, "tsconfig.json"),
-    json({ extends: "../../tsconfig.base.json", compilerOptions: { noEmit: true }, include: ["src"] }),
-  );
-  // The build resolves the modules through `types` (their dist .d.ts), and checks those
-  // declarations too: no @gyos/source condition, no skipLibCheck.
-  writeFileSync(
-    join(dir, "tsconfig.build.json"),
-    json({
-      extends: "../../tsconfig.base.json",
-      compilerOptions: { rootDir: "./src", outDir: "./dist", customConditions: [], skipLibCheck: false },
-      include: ["src"],
-    }),
-  );
   // GYOS's own scripts, checked with the workspace's TypeScript 7 and Node types.
   writeFileSync(
-    join(dir, "tsconfig.gyos-scripts.json"),
+    join(host, "tsconfig.gyos-scripts.json"),
     json({
       extends: "../../tsconfig.base.json",
       compilerOptions: { noEmit: true, allowImportingTsExtensions: true, typeRoots: ["./node_modules/@types"] },
       files: ["new-module.ts", "verify-templates.ts"].map((file) => join(REPO, "scripts", file)),
     }),
   );
+  // The consumer resolves the modules through `types` (their dist .d.ts), and checks those
+  // declarations too: no @gyos/source condition, no skipLibCheck.
   writeFileSync(
-    join(dir, "src", "main.ts"),
-    `// A host: the composition root. Builds the pool and the logger, builds every module once,
-// awaits ready() for all of them at once (as a fresh deploy would), then calls them.
-import { randomUUID } from "node:crypto";
-import pg from "pg";
-import { BillingItemError, createBillingModule, isBillingInputError } from "@module/billing";
-import type { BillingLogger } from "@module/billing/contracts";
+    join(host, "tsconfig.verify-consumer.json"),
+    json({
+      extends: "../../tsconfig.base.json",
+      compilerOptions: { noEmit: true, allowImportingTsExtensions: true, customConditions: [], skipLibCheck: false },
+      files: ["verify/consumer.ts"],
+    }),
+  );
+  writeFileSync(
+    join(dir, "consumer.ts"),
+    `// A consumer of the first module's entry points, vocabulary subpath included: typechecked against
+// the build's declarations, then run from the build and from source.
+import type { BillingModule } from "@module/billing";
 import { ITEM_NAME_MAX_LENGTH } from "@module/billing/items";
-import { createCaseManagementModule } from "@module/case-management";
 
-const url = process.env.DATABASE_URL;
-if (url === undefined) throw new Error("DATABASE_URL is not set");
+declare const billing: BillingModule;
+// Never called: it proves the build's types are real, not any.
+// @ts-expect-error: the tenant id is a string.
+const typesAreReal = () => billing.items.list(42);
+void typesAreReal;
 
-const logger = (bindings: Record<string, unknown> = {}): BillingLogger => ({
-  error: (message, fields) => console.error(JSON.stringify({ level: "error", ...bindings, ...fields, msg: String(message) })),
-  warn: (message, fields) => console.error(JSON.stringify({ level: "warn", ...bindings, ...fields, msg: message })),
-  info: (message, fields) => console.log(JSON.stringify({ level: "info", ...bindings, ...fields, msg: message })),
-  debug: () => {},
-  child: (more) => logger({ ...bindings, ...more }),
-});
-
-const pool = new pg.Pool({ connectionString: url });
-try {
-  const billing = createBillingModule({ db: pool, logger: logger() });
-  const caseManagement = createCaseManagementModule({ db: pool, logger: logger() });
-  await Promise.all([billing.ready(), caseManagement.ready()]);
-
-  const tenant = randomUUID();
-  // Never called: it proves the module's types are real, not any.
-  // @ts-expect-error: the tenant id is a string.
-  const _typesAreReal = () => billing.items.list(42);
-  await billing.items.create(tenant, { name: "Blue widget" });
-  const refused = await billing.items.create(tenant, { name: "Blue widget" }).catch((error: unknown) => error);
-  if (!(refused instanceof BillingItemError) || refused.code !== "duplicate-name") {
-    throw new Error(\`expected a duplicate-name refusal, got \${String(refused)}\`);
-  }
-  // The host maps invalid input without importing zod.
-  const invalid = await billing.items.create(tenant, { name: "" }).catch((error: unknown) => error);
-  if (!isBillingInputError(invalid) || isBillingInputError(refused)) {
-    throw new Error(\`expected only the blank name to be invalid input, got \${String(invalid)}\`);
-  }
-  const [billingItems, caseItems] = await Promise.all([billing.items.list(tenant), caseManagement.items.list(tenant)]);
-  if (billingItems.length !== 1 || caseItems.length !== 0) {
-    throw new Error("each module should see only its own schema");
-  }
-  console.log(\`smoke: ok (names up to \${ITEM_NAME_MAX_LENGTH} characters, \${import.meta.url.includes("/dist/") ? "build" : "source"})\`);
-} finally {
-  await pool.end();
-}
+console.log(\`consumer: ok (names up to \${ITEM_NAME_MAX_LENGTH} characters, from \${import.meta.resolve("@module/billing/items").includes("/dist/") ? "the build" : "source"})\`);
 `,
   );
   writeFileSync(
-    join(dir, "scripts", "database.mjs"),
-    `// node scripts/database.mjs create|drop <name>: a database for one verification run.
+    join(dir, "database.mjs"),
+    `// node verify/database.mjs create|drop <name>: a database for one verification run.
 import pg from "pg";
 
 const [action, name] = process.argv.slice(2);
@@ -256,34 +217,212 @@ try {
   );
 }
 
-function verify(): void {
+interface Check {
+  name: string;
+  method: string;
+  path: string;
+  json?: unknown;
+  tenant?: boolean;
+  status: number;
+  /** What else the response must show; returns a problem, or undefined. */
+  expect?: (body: unknown) => string | undefined;
+}
+
+const errorCode = (body: unknown): unknown => (body as { error?: { code?: unknown } } | undefined)?.error?.code;
+const itemsOf = (body: unknown): unknown[] => ((body as { items?: unknown[] } | undefined)?.items ?? []) as unknown[];
+
+/** The requests made to the running host, in order. */
+function smokeChecks(): Check[] {
+  const [first, second] = MODULES;
+  const firstItems = `/${first}/${AREAS[first]}`;
+  const secondItems = `/${second}/${AREAS[second]}`;
+  const name = "Blue widget";
+  return [
+    { name: "liveness", method: "GET", path: "/health", status: 200 },
+    { name: "readiness", method: "GET", path: "/ready", status: 200 },
+    { name: "create", method: "POST", path: firstItems, json: { name }, tenant: true, status: 201 },
+    {
+      name: "a refusal, mapped",
+      method: "POST",
+      path: firstItems,
+      json: { name },
+      tenant: true,
+      status: 409,
+      expect: (body) => (errorCode(body) === "duplicate-name" ? undefined : `code ${String(errorCode(body))}`),
+    },
+    {
+      name: "invalid input",
+      method: "POST",
+      path: firstItems,
+      json: { name: "" },
+      tenant: true,
+      status: 400,
+      expect: (body) => (errorCode(body) === "invalid-input" ? undefined : `code ${String(errorCode(body))}`),
+    },
+    {
+      name: "list",
+      method: "GET",
+      path: firstItems,
+      tenant: true,
+      status: 200,
+      expect: (body) => (itemsOf(body).length === 1 ? undefined : `${itemsOf(body).length} items, expected 1`),
+    },
+    {
+      name: "each module sees only its own schema",
+      method: "GET",
+      path: secondItems,
+      tenant: true,
+      status: 200,
+      expect: (body) => (itemsOf(body).length === 0 ? undefined : `${itemsOf(body).length} items, expected 0`),
+    },
+    {
+      name: "not found",
+      method: "PATCH",
+      path: `${firstItems}/${randomUUID()}`,
+      json: { name },
+      tenant: true,
+      status: 404,
+    },
+    { name: "no such route", method: "GET", path: "/nowhere", status: 404 },
+  ];
+}
+
+/**
+ * Starts the host as a deploy would (port chosen by the system, JSON logs), waits for its
+ * "listening" line, makes the requests in smokeChecks(), then stops it with SIGTERM, and expects
+ * it to log "stopped" and exit with 0.
+ */
+async function runHost(step: string, args: string[], env: NodeJS.ProcessEnv): Promise<boolean> {
+  console.log(`\n▶ ${step}\n  $ node ${args.join(" ")}`);
+  const started = performance.now();
+  const child = spawn(process.execPath, args, {
+    cwd: host,
+    env: { ...baseEnv, ...env, NODE_ENV: "production", HOST: "127.0.0.1", PORT: "0", LOG_LEVEL: "info" },
+    stdio: ["ignore", "pipe", "inherit"],
+  });
+  const lines: Record<string, unknown>[] = [];
+  const exited = new Promise<number | null>((resolve) => child.once("exit", (code) => resolve(code)));
+  const listening = new Promise<number>((resolve, reject) => {
+    let buffer = "";
+    child.stdout.setEncoding("utf8");
+    child.stdout.on("data", (chunk: string) => {
+      buffer += chunk;
+      const complete = buffer.split("\n");
+      buffer = complete.pop() ?? "";
+      for (const line of complete) {
+        console.log(`  ${line}`);
+        try {
+          const entry = JSON.parse(line) as Record<string, unknown>;
+          lines.push(entry);
+          if (entry.msg === "listening" && typeof entry.port === "number") resolve(entry.port);
+        } catch {
+          // Not a log line.
+        }
+      }
+    });
+    void exited.then((code) => reject(new Error(`it exited with ${String(code)} before listening`)));
+    setTimeout(() => reject(new Error("it was not listening after 60 s")), 60_000).unref();
+  });
+
+  const problems: string[] = [];
+  try {
+    const port = await listening;
+    const tenant = { "x-tenant-id": `tenant-${randomUUID()}` };
+    for (const check of smokeChecks()) {
+      const response = await fetch(`http://127.0.0.1:${port}${check.path}`, {
+        method: check.method,
+        headers: { ...(check.json === undefined ? {} : { "content-type": "application/json" }), ...(check.tenant ? tenant : {}) },
+        body: check.json === undefined ? undefined : JSON.stringify(check.json),
+      });
+      const text = await response.text();
+      const body: unknown = text === "" ? undefined : JSON.parse(text);
+      const problem =
+        response.status !== check.status ? `status ${response.status}, expected ${check.status}` : check.expect?.(body);
+      console.log(`  ${problem === undefined ? "ok  " : "FAIL"} ${check.name}: ${check.method} ${check.path} → ${response.status}`);
+      if (problem !== undefined) problems.push(`${check.name}: ${problem} (${text})`);
+    }
+  } catch (error) {
+    problems.push(error instanceof Error ? error.message : String(error));
+  } finally {
+    child.kill("SIGTERM");
+  }
+  const code = await Promise.race([exited, new Promise<"hung">((resolve) => setTimeout(() => resolve("hung"), 30_000).unref())]);
+  if (code === "hung") {
+    child.kill("SIGKILL");
+    problems.push("it didn't exit within 30 s of SIGTERM");
+  } else if (code !== 0) {
+    problems.push(`it exited with ${String(code)} after SIGTERM`);
+  } else if (!lines.some((line) => line.msg === "stopped")) {
+    problems.push('it exited without logging "stopped"');
+  }
+  for (const problem of problems) console.error(`  ${problem}`);
+  return record(step, problems.length === 0, started);
+}
+
+async function verify(): Promise<void> {
   console.log(`GYOS template verification in ${root}`);
   cpSync(join(REPO, "templates", "workspace"), root, { recursive: true });
   cpSync(join(REPO, "templates", "tooling-architecture"), join(root, "tooling", "architecture"), { recursive: true });
+  cpSync(join(REPO, "templates", "apps", "api"), host, { recursive: true });
   for (const name of MODULES) {
-    if (!run(`scaffold ${name}`, process.execPath, [join(REPO, "scripts", "new-module.ts"), root, name])) return;
+    const args = [join(REPO, "scripts", "new-module.ts"), root, name, "--host", HOST];
+    if (!run(`scaffold ${name}`, process.execPath, args)) return;
   }
-  writeSmokeHost();
+  // Running it again for a module already there changes nothing in the host.
+  const hostFiles = ["package.json", "src/modules.ts", "src/http/routes/index.ts"].map((file) => join(host, file));
+  const wired = hostFiles.map((file) => readFileSync(file, "utf8"));
+  const again = [join(REPO, "scripts", "new-module.ts"), root, MODULES[0], "--host", HOST];
+  if (!run(`scaffold ${MODULES[0]} again`, process.execPath, again)) return;
+  const unchanged = hostFiles.every((file, index) => readFileSync(file, "utf8") === wired[index]);
+  if (!unchanged) console.error(`  The second run changed ${HOST}.`);
+  results.push({ step: "scaffold again: the host is unchanged", status: unchanged ? "passed" : "failed", seconds: 0 });
+  if (!unchanged) return;
+  // A host whose marker is missing is refused before anything is written, the module included.
+  const modulesFile = join(host, "src", "modules.ts");
+  const withMarkers = readFileSync(modulesFile, "utf8");
+  writeFileSync(modulesFile, withMarkers.replace("// gyos:modules:build", ""));
+  let refusedHost: boolean;
+  try {
+    refusedHost = runExpectingFailure(
+      "scaffold refuses a host without its markers",
+      process.execPath,
+      [join(REPO, "scripts", "new-module.ts"), root, "refused", "--host", HOST],
+      { output: /expected the marker "\/\/ gyos:modules:build" once, found it 0 times/ },
+    );
+  } finally {
+    writeFileSync(modulesFile, withMarkers);
+  }
+  if (!refusedHost) return;
+  if (existsSync(join(root, "modules", "refused"))) {
+    console.error("  It refused the host, but scaffolded the module first.");
+    results.push({ step: "scaffold refuses a host: nothing written", status: "failed", seconds: 0 });
+    return;
+  }
+  writeVerificationFiles();
 
   if (!run("install", "pnpm", ["install", "--no-frozen-lockfile"])) return;
   for (const task of ["typecheck", "build", "test:unit", "test:scenarios"]) {
     if (!run(task, "pnpm", ["run", task])) return;
   }
   if (!checkCacheInvalidation()) return;
-  const smoke = join(root, "apps", "smoke");
-  if (!run("typecheck GYOS scripts", "pnpm", ["exec", "tsc", "-p", "tsconfig.gyos-scripts.json"], { cwd: smoke })) {
+  if (!run("typecheck GYOS scripts", "pnpm", ["exec", "tsc", "-p", "tsconfig.gyos-scripts.json"], { cwd: host })) {
+    return;
+  }
+  // A consumer of the modules' build: their declarations typecheck without skipLibCheck, their
+  // types are real, and every entry point runs from dist/ and from src/.
+  if (!run("consumer: types against the build", "pnpm", ["exec", "tsc", "-p", "tsconfig.verify-consumer.json"], { cwd: host })) {
+    return;
+  }
+  if (!run("consumer: from the build", process.execPath, ["verify/consumer.ts"], { cwd: host })) return;
+  if (!run("consumer: from source", process.execPath, ["--conditions=@gyos/source", "verify/consumer.ts"], { cwd: host })) {
     return;
   }
   if (!run("db:check", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:check"])) return;
   if (!checkMigrationsMatchSchema()) return;
 
-  const databaseSteps = [
-    "host from source",
-    "host from build",
-    "db:migrate",
-    "test:integration refuses a database not named for tests",
-    "test:integration",
-  ];
+  const refusers = ["@module/billing", "api"];
+  const refusal = (pkg: string) => `test:integration of ${pkg} refuses a database not named for tests`;
+  const databaseSteps = ["host from source", "host from build", "db:migrate", ...refusers.map(refusal), "test:integration"];
   const adminUrl = process.env.DATABASE_URL;
   if (!withDatabase) {
     databaseSteps.forEach(skip);
@@ -294,7 +433,7 @@ function verify(): void {
     results.push({ step: "database", status: "failed", seconds: 0 });
     return;
   }
-  if (!run("create database", process.execPath, ["scripts/database.mjs", "create", databaseName], { cwd: smoke, env: { DATABASE_URL: adminUrl } })) {
+  if (!run("create database", process.execPath, ["verify/database.mjs", "create", databaseName], { cwd: host, env: { DATABASE_URL: adminUrl } })) {
     return;
   }
   const url = new URL(adminUrl);
@@ -303,32 +442,32 @@ function verify(): void {
   const env = { DATABASE_URL: databaseUrl };
 
   // Both modules migrate at once on an empty database, from source through the workspace symlinks.
-  if (!run("host from source", process.execPath, ["--conditions=@gyos/source", "src/main.ts"], { cwd: smoke, env })) return;
-  if (!run("host from build", process.execPath, ["dist/main.js"], { cwd: smoke, env })) return;
+  if (!(await runHost("host from source", ["--conditions=@gyos/source", "src/main.ts"], env))) return;
+  if (!(await runHost("host from build", ["dist/main.js"], env))) return;
   if (!run("db:migrate", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:migrate"], { env })) return;
-  // The integration tests wipe their module's schema: they read TEST_DATABASE_URL, not
+  // The integration tests wipe schemas, or whole databases: they read TEST_DATABASE_URL, not
   // DATABASE_URL, and refuse a database whose name doesn't contain "test" or "verify".
   const notForTests = new URL(adminUrl);
   notForTests.pathname = "/postgres";
-  const refused = runExpectingFailure(
-    "test:integration refuses a database not named for tests",
-    "pnpm",
-    ["--filter", "@module/billing", "run", "test:integration"],
-    { env: { TEST_DATABASE_URL: notForTests.toString() }, output: /only run on a database whose name contains/ },
-  );
-  if (!refused) return;
+  for (const pkg of refusers) {
+    const refused = runExpectingFailure(refusal(pkg), "pnpm", ["--filter", pkg, "run", "test:integration"], {
+      env: { TEST_DATABASE_URL: notForTests.toString() },
+      output: /only run on a database whose name contains/,
+    });
+    if (!refused) return;
+  }
   run("test:integration", "pnpm", ["run", "test:integration"], { env: { TEST_DATABASE_URL: databaseUrl } });
 }
 
 try {
-  verify();
+  await verify();
 } catch (error) {
   console.error(error);
   results.push({ step: "verification script", status: "failed", seconds: 0 });
 } finally {
   if (databaseUrl !== undefined && process.env.DATABASE_URL !== undefined) {
-    run("drop database", process.execPath, ["scripts/database.mjs", "drop", databaseName], {
-      cwd: join(root, "apps", "smoke"),
+    run("drop database", process.execPath, ["verify/database.mjs", "drop", databaseName], {
+      cwd: host,
       env: { DATABASE_URL: process.env.DATABASE_URL },
     });
   }
@@ -339,6 +478,9 @@ console.log("\nSummary");
 for (const { step, status, seconds } of results) {
   console.log(`  ${status === "passed" ? "PASS" : status === "failed" ? "FAIL" : "SKIP"}  ${step.padEnd(24)} ${seconds.toFixed(1)}s`);
 }
+console.log(`\n${results.filter((result) => result.status === "passed").length} passed, ` +
+  `${results.filter((result) => result.status === "failed").length} failed, ` +
+  `${results.filter((result) => result.status === "skipped").length} skipped`);
 if (failed || keep) {
   console.log(`\nThe workspace is kept in ${root}`);
 } else {
