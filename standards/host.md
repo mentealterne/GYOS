@@ -204,9 +204,12 @@ module's lines were edited by hand: a file that already imports the module (`"@m
 ## The workspace around it
 
 - `docker-compose.yml`: Postgres 18, a development database and `<name>_test`, created on the first
-  start by `docker/postgres/create-test-database.sh`, with a healthcheck. The script was run against
-  a local Postgres 16; the compose file itself is **not verified** (`docker compose config` parses
-  it).
+  start by `docker/postgres/create-test-database.sh`, with a healthcheck. Its port is published on
+  `127.0.0.1` only: the password is `postgres`, so the database must not be reachable from the
+  network. The script was run against a local Postgres 16; the compose file itself is **not
+  verified** (`docker compose config` parses it, and shows the port bound to `127.0.0.1`).
+- `.gitattributes`: `*.sh text eol=lf`, so a Windows checkout doesn't turn that script's line
+  endings into CRLF, which bash can't run.
 - `.env.example`: `DATABASE_URL`, `TEST_DATABASE_URL`, `PORT`, `LOG_LEVEL`, `NODE_ENV`, and
   `TENANT_FROM_HEADER` commented out, with what it is. `pnpm dev`
   reads `.env`; other commands read the shell's environment.
