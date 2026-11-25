@@ -1,0 +1,50 @@
+{
+  "name": "@module/sample",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "sideEffects": false,
+  "exports": {
+    ".": {
+      "@gyos/source": "./src/index.ts",
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    },
+    "./contracts": {
+      "@gyos/source": "./src/contracts.ts",
+      "types": "./dist/contracts.d.ts",
+      "default": "./dist/contracts.js"
+    },
+    "./items": {
+      "@gyos/source": "./src/items-vocabulary.ts",
+      "types": "./dist/items-vocabulary.d.ts",
+      "default": "./dist/items-vocabulary.js"
+    }
+  },
+  "files": ["dist", "src", "drizzle"],
+  "scripts": {
+    "build": "tsc -p tsconfig.build.json",
+    "typecheck": "tsc --noEmit",
+    "test:unit": "vitest run",
+    "test:scenarios": "NODE_OPTIONS=--conditions=@gyos/source cucumber-js",
+    "test:integration": "vitest run -c vitest.config.integration.ts",
+    "db:generate": "drizzle-kit generate",
+    "db:migrate": "node --conditions=@gyos/source scripts/migrate.ts",
+    "db:check": "drizzle-kit check"
+  },
+  "dependencies": {
+    "@types/pg": "catalog:",
+    "drizzle-orm": "catalog:",
+    "pg": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@cucumber/cucumber": "catalog:",
+    "@types/node": "catalog:",
+    "@typescript/native": "catalog:",
+    "drizzle-kit": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
