@@ -3,7 +3,13 @@
 The shape of every domain module GYOS generates, and the rules it keeps. GYOS's templates, the
 `/gyos:context` skill and `/gyos:doctor` all follow this file. Change the standard here first,
 then the templates. The reasons and sources behind it are in `knowledge/ports-and-adapters.md`,
-`knowledge/data-and-migrations.md` and `knowledge/modular-monolith.md`.
+`knowledge/data-and-migrations.md`, `knowledge/modular-monolith.md` and
+`knowledge/packaging-and-build.md`.
+
+The template that implements this standard is `templates/module`, and
+`scripts/verify-templates.ts` proves it: it scaffolds two modules into a throwaway workspace and
+runs every check below on them, in CI too. A statement here marked **verified** was run that way,
+not only read in documentation.
 
 The shape is taken from a production module that went through a long series of changes and
 schema migrations: an identity module consumed in-process by several apps. Its rules are
@@ -19,9 +25,12 @@ Versions were checked on 2026-11-25. Details that depend on a version are marked
 
 A module is the code of **one bounded context**:
 
-- It lives in `modules/<name>/` and is the workspace package `@module/<name>`.
+- It lives in `modules/<name>/` and is the workspace package `@module/<name>`. `<name>` is
+  kebab-case, preferably one word.
 - It is an **ESM package that ships a build**, compiled with `tsc`.
-- It **owns one Postgres schema**, named after it, and migrates that schema itself.
+- It **owns one Postgres schema**, named after it, and migrates that schema itself. A
+  multi-word name gives a schema such as `"case-management"`: Drizzle always quotes it, and
+  hand-written SQL must too (verified).
 - Apps consume it **in-process**, through its public entry points. There is no HTTP between
   modules: the product is a modular monolith.
 - Inside, it is **ports and adapters**. Pure rules sit in the middle, use cases around them, and
@@ -34,13 +43,15 @@ A module is the code of **one bounded context**:
 ```
 modules/<name>/
 ├── package.json            exports: ".", "./contracts", the vocabulary subpaths
-├── tsconfig.json           typecheck: src, tests, features
-├── tsconfig.build.json     build: src → dist, with declarations
+├── tsconfig.json           typecheck only: src (tests included), features, scripts, the config files
+├── tsconfig.build.json     build: src → dist with declarations; rootDir ./src, src/tests excluded
 ├── drizzle.config.ts       drizzle-kit, this module's schema only
 ├── drizzle/                generated SQL migrations; shipped with the package
-├── vitest.config.ts
+├── vitest.config.ts        unit and architecture tests: src/tests/unit/**/*.test.ts
+├── vitest.config.integration.ts  integration tests: src/tests/integration/**/*.test.ts
 ├── cucumber.mjs            loads tsx-register.js, then features/support and features/steps
 ├── tsx-register.js
+├── scripts/migrate.ts      `db:migrate`: runs the migrations by hand. Tooling, like drizzle.config.ts
 ├── features/               scenarios: *.feature, steps/, support/ (world, hooks, in-memory adapters)
 └── src/
     ├── index.ts            create<Name>Module(config): the module's factory
@@ -48,6 +59,7 @@ modules/<name>/
     ├── repositories.ts     builds every adapter on its connection
     ├── migrations.ts       the migrations folder, resolved the same from src/ and dist/
     ├── module-controllers/ the operations hosts call: parse input, delegate
+    │   └── index.ts        builds the use cases and controllers on a set of repositories
     ├── <area>/
     │   ├── domain/         pure rules
     │   ├── services/       use cases: load through ports, apply rules, write through ports
@@ -61,6 +73,9 @@ modules/<name>/
         ├── unit/           no database: domain, services, controllers, architecture
         └── integration/    adapters against a real Postgres
 ```
+
+`module-controllers/index.ts` is the wiring shared by `index.ts` (with the Postgres adapters) and
+by the scenarios and unit tests (with the in-memory ones), so the two cannot drift apart.
 
 **Areas.** A module has one or more areas: the parts of the bounded context that change for
 different reasons, for example `authentication`, `account` and `company` inside an identity
@@ -97,8 +112,15 @@ database handle. A host doesn't import anything below the published entry points
 | `<area>/domain/` | Pure rules: no I/O, no clock, no logger | The vocabulary, its own `domain/` | Anything else |
 | `<area>/services/` | Use cases | Its `domain/`, any `ports.ts` (types), the logger port | `adapters/`, `db/`, Drizzle, `pg` |
 | `<area>/ports.ts` | Interfaces: repositories, notifiers, outside systems | Types only | Any implementation |
-| `<area>/adapters/` | Implementations of the ports, and mapping rows to domain types | Its `ports.ts`, `db/`, Drizzle | `services/`, another area's adapters |
+| `<area>/adapters/` | Implementations of the ports, and mapping rows to domain types | Its `ports.ts`, `db/`, Drizzle, `pg`, Node built-ins | `services/`, another area's adapters |
 | `<vocabulary>.ts` | The module's published language | zod | Anything with I/O |
+| `repositories.ts` | Builds every adapter on the connection | Adapters, ports (types), `db/`, Drizzle | Services, controllers |
+| `db/` | The schema and the migration runner | Drizzle, `pg`, Node built-ins | Anything else in the module |
+| `config/` | The configuration contract | The logger port, `migrations.ts`, ports (types), `pg` (types) | Adapters, services |
+| `logger.ts`, `migrations.ts` | The logger port and fallback; the migrations folder | Nothing (Node built-ins for `migrations.ts`) | Everything else |
+
+The architecture tests read this table as an **allow-list**: an import that no row allows is a
+violation. `src/tests/` is not checked.
 
 **Areas talk through ports and rules, never through each other's adapters.**
 
@@ -122,7 +144,7 @@ Swapping a technology then means adding a file next to the old one and changing 
 - it resolves the config;
 - it opens nothing of its own;
 - it builds the adapters on the injected connection;
-- it returns the controllers.
+- it returns the controllers and `ready()`, which migrates the module's schema (M8).
 
 A host calls it **once per process** and keeps the result. The host's `main.ts` is the
 composition root: it builds the pool and the logger, builds every module, and wires the junctions.
@@ -157,8 +179,9 @@ _Trap:_ a Drizzle call in a service is a place the next schema change will have 
 - `resolve<Name>Config(config)`, which layers the defaults and throws `<Name>ConfigError`
   listing **every** problem, not just the first.
 
-Nothing in the module reads `process.env`: the host reads the environment and passes the values
-in.
+Nothing under `src/` reads `process.env`: the host reads the environment and passes the values
+in. Tooling at the module's root (`drizzle.config.ts`, `scripts/`) may read it, and so may the
+integration tests. An architecture test fails on any other read.
 _Why:_ bad configuration fails at boot, not at somebody's first request, and the person fixing
 it sees every problem in one restart, not one per restart.
 
@@ -171,9 +194,11 @@ it sees every problem in one restart, not one per restart.
 _Trap:_ a casual cross-schema join today is a blocker the day the boundary moves.
 
 **M8. The module migrates its own schema, expand-only.**
-`ready()` runs the module's migrations once per pool. Runs in flight are shared, and a failed run
-is forgotten so that the next call retries it. Every host awaits `ready()` for every module
-before it serves a request or runs a job.
+`ready()` runs the module's migrations once per module instance, which M1 makes once per process.
+The memo lives in the factory's closure, not at module scope (M3). Runs in flight are shared, and
+a failed run is forgotten so that the next call retries it. Every host awaits `ready()` for every
+module before it serves a request or runs a job, and may await them all at once: migrations of
+all modules are serialised by one advisory lock (see Data).
 
 Migrations are **expand-only**, because new code migrates while instances of the old version are
 still serving. That rules out `DROP`, `RENAME`, type changes and `SET NOT NULL` in the same deploy
@@ -200,7 +225,9 @@ The compiler is the first line of enforcement:
 - **`module: "nodenext"`.** TypeScript honours `exports`, so a deep import fails to resolve.
 - **No tsconfig `paths`.** `paths` bypass `exports`, and Node's type stripping ignores them.
   Imports inside a module are relative, with `.ts` extensions, rewritten to `.js` by
-  `rewriteRelativeImportExtensions`.
+  `rewriteRelativeImportExtensions`. The emitted `.d.ts` files keep the `.ts` specifiers, and
+  TypeScript resolves them to the sibling `.d.ts`: a consumer built against `dist` typechecks
+  with `skipLibCheck` off (verified, TypeScript 7.0.2).
 - **pnpm doesn't hoist undeclared dependencies,** so importing a module that isn't in
   `package.json` fails.
 
@@ -256,9 +283,13 @@ through the config.
 - **Expected business refusals** are typed error classes with a `code` union, for example
   `InvoiceAccessError` with `code: "not-found" | "already-paid"`. Services throw them, and the root
   entry exports them.
+- **Invalid input** is the `ZodError` thrown by the controller's parse.
 - **The host maps them** to HTTP statuses, job outcomes or CLI exit codes. The module never
   produces an HTTP error.
 - **Anything else is a bug** and is thrown as a plain error.
+- **A port reports an expected outcome as a value**, not an exception: an adapter returns
+  `"name-taken"` when a unique index refuses a write, and the service turns it into the typed
+  error. A rule checked before the write can still lose a race; the index is the backstop.
 
 A `Result` type is an accepted alternative for a team that prefers it. If a team chooses it, the
 choice is recorded in an ADR and applied to every module.
@@ -280,10 +311,11 @@ export interface BillingLogger {
 }
 ```
 
-- **The factory calls `config.logger.child({ module: "billing" })` once**, so every line the module
-  writes carries its name.
+- **The factory calls `child({ module: "billing" })` once on the resolved logger** (the injected
+  one, or the fallback), so every line the module writes carries its name.
 - **Without an injected logger, only warnings and errors reach stderr.** A library documents its
-  logging and doesn't configure output for the application.
+  logging and doesn't configure output for the application. The fallback implements the whole
+  port, `child()` included.
 - **The real logger is chosen at setup:** pino, pino with OpenTelemetry, or the team's own. The
   host builds it once and injects it into every module.
 - **The module never depends on a logging library.** The adapter from pino to the port is a few
@@ -299,8 +331,10 @@ export interface BillingLogger {
 is a release candidate; the docs site already documents it, with a different migrations layout.
 GYOS moves to version 1 when it becomes `latest`, with `drizzle-kit up` to convert the history.
 
-**The schema.** `src/db/schema.ts` declares `export const billing = pgSchema("billing")` and
-every table on it. The schema name is a constant used everywhere; nothing hard-codes it.
+**The schema.** `src/db/schema.ts` declares `export const BILLING_SCHEMA = "billing"`,
+`export const schema = pgSchema(BILLING_SCHEMA)` and every table on it. The schema name is a
+constant used everywhere; nothing else in `src/` hard-codes it. (The variable is not called
+`billing`: a scaffolded `case-management` would not be a valid identifier.)
 
 **drizzle-kit, one module at a time.** Each module has its own `drizzle.config.ts`:
 
@@ -312,26 +346,41 @@ export default defineConfig({
   schemaFilter: ["billing"],
   // Bookkeeping in the shared `drizzle` schema, one table per module (see below).
   migrations: { schema: "drizzle", table: "__migrations_billing" },
-  dbCredentials: { url: process.env.DATABASE_URL! },
+  dbCredentials: { url: process.env.DATABASE_URL ?? "" },
 });
 ```
 
 - **`drizzle.config.ts` may read `process.env`.** It is tooling that runs on a developer's machine
-  or in CI. M6 applies to `src/`.
+  or in CI. M6 applies to `src/`. drizzle-kit 0.31 loads this TypeScript config, and the schema it
+  points at, in a `"type": "module"` package (verified).
 - **`schemaFilter` only affects `push` and `pull`,** not `generate`.
 - **Each module's bookkeeping is its own table in a shared `drizzle` schema, not a table in the
   module's schema.** The migrator runs `CREATE SCHEMA IF NOT EXISTS` on the bookkeeping schema
   before anything else, and the first generated migration runs a bare `CREATE SCHEMA "billing"`.
-  If the two were the same schema, the first migration would fail. That failure is inferred from
-  Drizzle's source, not run.
+  With the bookkeeping in the module's own schema, the first migration fails with
+  `schema "billing" already exists` (42P06) (verified).
 
 **Running migrations.** Drizzle's migrator applies every pending migration in one transaction, but
-**it takes no lock** **[version: 0.45, and 1.0 rc]**. Two processes booting at once would race.
-`ready()` therefore holds a session-level advisory lock on a dedicated connection:
+**it takes no lock** **[version: 0.45, and 1.0 rc]**. Two processes booting at once race: without
+a lock, one of two concurrent runs failed in 29 of 30 trials, on the creation of the bookkeeping
+table (verified). `ready()` therefore holds a session-level advisory lock on a dedicated
+connection.
+
+**One lock key for the whole workspace, not one per module.** Every module's migrator also runs
+`CREATE SCHEMA IF NOT EXISTS "drizzle"`, outside its transaction, and `IF NOT EXISTS` is not safe
+under concurrency: two sessions creating the same schema at once fail with a unique violation on
+`pg_namespace` (100 of 100 trials). With one key per module, two modules booting together on an
+empty database collided in 6 of 20 trials; with one shared key, in none (verified). The same
+holds for anything else modules share in the database, such as `CREATE EXTENSION`. Migrations of
+all modules therefore run one at a time, which costs nothing at boot once they are applied.
+`tooling/architecture` checks that every module uses the same key.
 
 ```ts
 // src/db/migrate.ts
-const MIGRATION_LOCK_KEY = 4_217_001n; // a constant per module, unique in the workspace
+/** The same key in every module of the workspace ("gyosmig" in ASCII). */
+export const MIGRATION_LOCK_KEY = 0x67796f736d6967n;
+export const MIGRATIONS_SCHEMA = "drizzle";
+export const MIGRATIONS_TABLE = "__migrations_billing";
 
 export async function migrateBilling(pool: Pool, migrationsFolder: string): Promise<void> {
   const client = await pool.connect(); // one session for the lock and the migration
@@ -340,8 +389,8 @@ export async function migrateBilling(pool: Pool, migrationsFolder: string): Prom
     await client.query("set lock_timeout = '5s'"); // after the advisory lock, so it can't time out
     await migrate(drizzle({ client }), {
       migrationsFolder,
-      migrationsSchema: "drizzle",
-      migrationsTable: "__migrations_billing",
+      migrationsSchema: MIGRATIONS_SCHEMA,
+      migrationsTable: MIGRATIONS_TABLE,
     });
   } finally {
     client.release(true); // destroy the connection: frees the session lock and the setting
@@ -349,13 +398,17 @@ export async function migrateBilling(pool: Pool, migrationsFolder: string): Prom
 }
 ```
 
-A `db:migrate` script runs the same function by hand.
+The `db:migrate` script, `scripts/migrate.ts` at the module's root, runs the same function by
+hand. It lives outside `src/` because it reads `DATABASE_URL`, and runs with Node's type
+stripping: `node --conditions=@gyos/source scripts/migrate.ts` (verified).
 
 **[version] The out-of-order trap in Drizzle 0.x.** A migration is applied only if its timestamp
 is later than the last one applied, and hashes are not re-checked. A migration written on an old
 branch and merged later is therefore **skipped without a word**. Until version 1, which applies
 every missing migration by name, a CI check fails any pull request that adds a migration older
-than the newest one on `main`.
+than the newest one on `main`. That check is not built yet (a `todo` in `tooling/architecture`);
+meanwhile each module's architecture test fails when the journal's timestamps don't increase
+with its order, which is what a hand-merged journal looks like.
 
 **Shipping the migrations.**
 - The migrator reads `drizzle/` with plain `fs` at runtime, so the folder is listed in
@@ -438,16 +491,26 @@ meeting" belongs to neither assessments nor calendar. For each junction:
   "scripts": {
     "build": "tsc -p tsconfig.build.json",
     "typecheck": "tsc --noEmit",
-    "lint": "eslint .",
     "test:unit": "vitest run",
-    "test:scenarios": "cucumber-js",
+    "test:scenarios": "NODE_OPTIONS=--conditions=@gyos/source cucumber-js",
     "test:integration": "vitest run -c vitest.config.integration.ts",
     "db:generate": "drizzle-kit generate",
-    "db:migrate": "node src/db/migrate-cli.ts",
+    "db:migrate": "node --conditions=@gyos/source scripts/migrate.ts",
     "db:check": "drizzle-kit check"
   }
 }
 ```
+
+- **Every vocabulary file is an export of its own,** with the same three conditions:
+  `"./items": { "@gyos/source": "./src/items-vocabulary.ts", … }`.
+- **`@types/pg` is a dependency, not a dev dependency,** because the shipped `.d.ts` mention
+  `Pool`.
+- **Versions come from the workspace's pnpm catalog** (`"drizzle-orm": "catalog:"`), so every
+  module uses the same ones, and `pg` resolves to one instance for the host and all modules.
+- **[version] No `lint` script yet.** typescript-eslint needs a TypeScript JS API, which
+  TypeScript 7.0 doesn't have. The workspace's `typescript` alias to `@typescript/typescript6`
+  (below) should satisfy its peer dependency, but that is **not verified**; ESLint arrives with
+  its own template.
 
 **`@gyos/source`, not `development`.** The condition comes first, and its name is unique to GYOS.
 A generic `development` condition also matches third-party packages that ship development builds,
@@ -455,17 +518,31 @@ so turning it on would switch them too. Each tool turns `@gyos/source` on in its
 
 | Tool | How |
 | --- | --- |
-| TypeScript | `customConditions: ["@gyos/source"]` |
-| Node | `--conditions=@gyos/source` |
-| Vite and Vitest | `resolve.conditions` |
+| TypeScript | `customConditions: ["@gyos/source"]` in the base tsconfig; `[]` in `tsconfig.build.json` |
+| Node | `--conditions=@gyos/source`, or `NODE_OPTIONS=--conditions=@gyos/source` for a tool that starts Node itself (Cucumber) |
+| Vitest | `ssr.resolve.conditions: ["@gyos/source", "module", "node", "development\|production"]` |
+| Vite (browser builds) | `resolve.conditions: ["@gyos/source", "module", "browser", "development\|production"]` (not tried yet) |
+
+- **Vitest runs tests in Vite's server environment.** `resolve.conditions` alone is not used
+  there: a test importing another module failed to resolve it until the condition was in
+  `ssr.resolve.conditions` (verified, Vitest 5.1 with Vite 8.3). Setting the list replaces Vite's
+  defaults, so they are repeated after it.
+- **Without the condition, an import of another module resolves to its `dist/`,** which exists
+  only after a build. That is why the scenarios and `db:migrate` turn it on (verified for the
+  scenarios: without it, support code importing a workspace package failed before a build).
+- **The build turns it off** (`customConditions: []`), so a module builds against its
+  dependencies' declarations, as consumers in production do. That is what `^build` in
+  `turbo.json` is for.
 
 **The build is `tsc`** **[version]**:
 - It emits JavaScript and declarations, file for file.
 - Turborepo recommends it for internal packages and advises against project references.
-- In `turbo.json`, `build` depends on `^build` and outputs `dist/**`.
+- In `turbo.json`, `build` depends on `^build` and outputs `dist/**`. `test:integration` is not
+  cached and lists `DATABASE_URL` in `passThroughEnv`: Turborepo 2 hides undeclared environment
+  variables from tasks.
 - esbuild emits no declarations and no type check. tsup is unmaintained.
 
-**The base tsconfig** **[version: TypeScript 7.0]**:
+**The base tsconfig** (`tsconfig.base.json` at the workspace root) **[version: TypeScript 7.0]**:
 
 | Option | Value |
 | --- | --- |
@@ -476,17 +553,35 @@ so turning it on would switch them too. Each tool turns `@gyos/source` on in its
 | `customConditions` | `["@gyos/source"]` |
 | `declaration`, `declarationMap` | `true` |
 | `types` | `["node"]` |
-| `rootDir` | `"./src"` |
+| `strict` | `true` |
 
-TypeScript 7 changed three defaults that this table makes explicit:
+The template's base also sets `target: "es2024"`, `sourceMap`, `noUncheckedIndexedAccess`,
+`noImplicitOverride` and `skipLibCheck`. Those are defaults a team may change; the table above is
+what the standard relies on.
+
+**`rootDir` and `outDir` are not in the base.** A relative path in a shared base resolves against
+the base file, not against the package that extends it. Each package's `tsconfig.build.json`
+sets `rootDir: "./src"` and `outDir: "./dist"`, includes `src` and excludes `src/tests`. The
+package's `tsconfig.json` only typechecks (`noEmit`) and includes everything else too: `features`
+and the unit tests import each other, so one `rootDir` can't cover them.
+
+TypeScript 6.0 changed three defaults, which 7 keeps, and which these files make explicit:
 - `types` is now `[]`;
-- the default `rootDir` changed;
-- `strict` is now on by default.
+- `rootDir` defaults to the directory of the `tsconfig.json`;
+- `strict` is on by default.
+
+**[version] TypeScript 7 and 6 side by side.** The workspace aliases `"typescript"` to
+`npm:@typescript/typescript6` and `"@typescript/native"` to `npm:typescript@^7`, as the
+TypeScript 7.0 announcement recommends: `tsc` is TypeScript 7, and code that imports
+`"typescript"` (the architecture tests, later typescript-eslint) gets the 6 API (verified:
+`tsc` 7.0.2, API 6.0.3).
 
 **Erasable syntax only.** No `enum`, no parameter properties, no `namespace`. Use `as const`
 objects with union types, and factory functions rather than classes. This keeps every file
 runnable by Node's type stripping, and stable since Node 24.12. The dev loop runs
-`node --conditions=@gyos/source apps/api/src/main.ts` with no build step.
+`node --conditions=@gyos/source apps/api/src/main.ts` with no build step: Node follows pnpm's
+workspace symlink to the module's real path, outside `node_modules`, and strips its types
+(verified on Node 24.6 with a host importing two modules).
 
 **[version] Node 24 LTS** is the baseline. Cucumber 13 needs Node 22, 24 or ≥ 26, and the
 OpenTelemetry JS SDK 3 needs ≥ 22.15.
@@ -497,23 +592,32 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
 
 | Tier | Where | Runs against | Proves |
 | --- | --- | --- | --- |
-| **Unit** | `src/tests/unit/` | In-memory ports, no database | Domain rules, use cases, controller parsing |
-| **Architecture** | `src/tests/unit/architecture/` | The source's imports | The layer rules above; contracts hold types only; the migrations folder resolves |
+| **Unit** | `src/tests/unit/` | In-memory ports, no database | Domain rules, use cases, controller parsing, config validation |
+| **Architecture** | `src/tests/unit/architecture/` | The source's imports | The layer rules above; contracts and ports hold types only; no `process.env`; the exports; the migrations folder resolves |
 | **Scenarios** | `features/` | The controllers, with the in-memory adapters from `features/support/` | The product promises, in the language of the people who use it |
-| **Integration** | `src/tests/integration/` | Adapters on a real Postgres (docker compose) | Queries, mapping, migrations, the published views |
+| **Integration** | `src/tests/integration/` | Adapters on a real Postgres (`DATABASE_URL`) | Queries, mapping, the unique indexes, migrations (two pools at once included), the published views |
 
+- **Two Vitest configs.** `vitest.config.ts` includes only `src/tests/unit/**/*.test.ts`, so
+  `test:unit` never needs a database; `vitest.config.integration.ts` includes only
+  `src/tests/integration/**/*.test.ts` and runs the files one at a time
+  (`fileParallelism: false`), because they share the module's schema.
+- **The integration tests isolate themselves by schema.** They drop and recreate the module's own
+  schema and bookkeeping table, never anything else, so the modules of a workspace can run theirs
+  at the same time on one database. `DATABASE_URL` points at a throwaway database.
 - **One set of in-memory adapters** in `features/support/` serves both the scenarios and the unit
-  tests, so a phrase like "Giulia is an HR director" means the same thing everywhere.
+  tests, so a phrase like "Giulia is an HR director" means the same thing everywhere. They keep
+  the same promises as the real adapters, unique indexes included.
 - **The architecture tests check themselves.** Next to every rule there is a synthetic import
   that breaks it, and the test asserts that the rule reports it. A check that cannot fail proves
   nothing.
-- **[version] The architecture tests read imports with `ts.preProcessFile`.** TypeScript 7.0 ships
-  no programmatic API; one is expected in 7.1. Until then, the tests use the TypeScript 6 API,
-  installed next to 7 under the npm alias `@typescript/typescript6`, as the TypeScript 7
-  announcement documents.
+- **[version] The architecture tests read imports with `ts.preProcessFile`,** from the
+  TypeScript 6 API that the `typescript` alias provides (see Packaging and build). TypeScript 7.0
+  ships no programmatic API; one is expected in 7.1. "Types only" is checked by compiling the file
+  with `ts.transpileModule`: anything but `export {};` in the output is runtime code.
 - **Tests that span the workspace** run in `tooling/architecture` and cover what no single module
-  can check: the module dependency graph (declared, through entry points, no cycles), the closed
-  set of published views, no foreign key across schemas, and the migration-order check.
+  can check: the module dependency graph (declared, through entry points, no cycles), one
+  migration lock key and one bookkeeping table per module, no foreign key across schemas, the
+  closed set of published views and the migration-order check. The last two are `todo`s.
   Turborepo's experimental `boundaries` covers part of the graph, and can be added on top.
 
 ---
