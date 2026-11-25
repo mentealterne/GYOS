@@ -1,8 +1,10 @@
 {
   "name": "gyos",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "Grow Your Own Software: Knowledge-Driven Programming for Claude Code. Turns a product idea into a modular monolith with one module and one domain skill per bounded context, and keeps it true as it grows.",
-  "author": { "name": "Alfredo Guida" },
+  "author": {
+    "name": "Alfredo Guida"
+  },
   "homepage": "https://github.com/mentealterne/GYOS",
   "repository": "https://github.com/mentealterne/GYOS",
   "license": "Apache-2.0",
