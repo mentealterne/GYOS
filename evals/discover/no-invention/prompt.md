@@ -3,7 +3,7 @@ description: Pushed to skip the interview, discover still separates what it know
 tags: [discover, behaviour]
 runs: 3
 max_turns: 8
-allowed_tools: [Read, Glob, Grep, Skill]
+allowed_tools: [Read, Glob, Grep, Skill, Write]
 disallowed_tools: [AskUserQuestion]
 ---
 

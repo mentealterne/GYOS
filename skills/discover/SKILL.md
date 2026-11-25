@@ -5,8 +5,8 @@ description: >
   their invariants and a context map, by interviewing the user one question at a time. Use it
   when someone wants to start or rethink a product with GYOS, describes a product idea and asks
   how to structure it, asks "what are the bounded contexts of…", or runs /gyos:discover. It is
-  also the first phase of /gyos:init. It writes docs/product-brief.md, docs/context-map.md and a
-  draft glossary per context, and never writes code.
+  also the first phase of /gyos:init. It writes docs/product-brief.md and docs/context-map.md, with a draft
+  glossary per context, and never writes code.
 argument-hint: "[product idea]"
 ---
 
@@ -45,13 +45,26 @@ Check before asking anything:
 
 - **No `docs/context-map.md`:** a new discovery. Start at step 1. If the user gave the idea as an
   argument or in their message, don't ask for it again.
+- **The user's own documents are input.** Read any brief, spec or notes they point you at, or
+  that already sit in `docs/`, and treat what they say as *strong*.
+  - **A file that doesn't start with the GYOS header** is the user's. Never replace it: ask
+    before writing next to it, or to it.
 - **`docs/context-map.md` exists:** refine mode.
   - Read it and `docs/product-brief.md`.
   - Ask what changed or what the user wants to explore.
-  - Work on that part only. Never restart from scratch.
-- **A context already has a skill** (`.claude/skills/<context>/SKILL.md` exists): its glossary
-  belongs to that skill now. Propose changes to it and let the user confirm them; don't
-  overwrite it.
+  - Work on that part only, and edit the files in place, section by section. Never restart from
+    scratch or regenerate a file.
+- **A context already has a skill** (`.claude/skills/<context>/SKILL.md` exists, so `/gyos:init`
+  has run): its knowledge has moved out of the map.
+
+  | Knowledge | Now lives in |
+  | --- | --- |
+  | The glossary | The skill's `glossary.md` |
+  | The invariants | Its `architecture.md`, as C-numbers |
+  | The examples | The module's `.feature` files, or the skill's `scenarios.md` |
+
+  Propose changes to those files, not to the map. Apply the skill's confront rule: name what a
+  change would contradict, and write only after the user confirms.
 
 ## Rules
 
@@ -65,9 +78,10 @@ Check before asking anything:
    - Otherwise, or when that tool isn't available, ask in plain text and list your proposal.
 2. **Label every proposal:** *strong* (the user said it), *inferred* (it follows from what they
    said), or *speculative* (your guess).
-   - Only strong or explicitly confirmed answers go into the brief, a glossary or a context's
-     business decisions.
+   - Only strong or explicitly confirmed answers go into any field of the brief or the map:
+     business decisions, invariants, examples, classification, glossary terms.
    - Everything else goes under Assumptions or Open questions.
+   - A field the interview didn't cover gets `—` or an open question, never a plausible filler.
 3. **Ask for concrete past stories,** not opinions about the future: "Walk me through the last
    time…" beats "How would…". If the product doesn't exist yet, ask about how the work is done
    today, without it.
@@ -78,7 +92,9 @@ Check before asking anything:
    know" is a valid answer.
 7. **Talk in the user's language; write in English.** Business terms keep their original form
    in the glossary's first column.
-8. **No code, no modules, no skills.** Scaffolding is `/gyos:init`'s and `/gyos:context`'s job.
+8. **No code, no modules, no skills, nothing under `.claude/skills/`.** Scaffolding is
+   `/gyos:init`'s and `/gyos:context`'s job. Everything you learn about a context lives in its
+   context-map entry until then.
 
 ## The steps
 
@@ -104,7 +120,10 @@ Check before asking anything:
   - its purpose, in two business sentences;
   - the heuristics that suggested it (a change of language, a pivotal event, a different actor, a
     different pace);
-  - your label.
+  - your label;
+  - its kebab-case name. The name can't be a reserved name (the list in
+    `${CLAUDE_PLUGIN_ROOT}/standards/domain-skill.md`, "Where it lives") or the name of a skill
+    already in `.claude/skills/`.
 - Show them as a list and a mermaid diagram.
 - Ask the user to confirm, merge, split or rename.
 - On confirmation, write `docs/product-brief.md` and a first `docs/context-map.md`, from the
@@ -115,7 +134,13 @@ Check before asking anything:
 - the open questions, which go in the context's Open questions and never into a rule.
 
 Ask the consistency question: does this have to be consistent the moment the user acts, or can
-it catch up? Add the invariants with the trap each one avoids. Update the map as you go.
+it catch up? Add the invariants with the trap each one avoids.
+
+Build the context's glossary as you go: the terms, their meaning here, the synonyms to avoid.
+- **No code columns yet.** "In code" and "Codified in" don't exist until `/gyos:init` decides the
+  language of code, so don't guess identifiers.
+- **Show, then write.** Show the context's entry, glossary included, and write it to the map once
+  the user has seen it. A session that stops here loses nothing.
 
 **6. Strategize.**
 - Classify each context as core, supporting or generic.
@@ -127,7 +152,8 @@ it catch up? Add the invariants with the trap each one avoids. Update the map as
 - Map the relationships between contexts, and how each will look in a modular monolith.
 - Name every junction (a rule that spans two contexts). Say it belongs to neither context, and
   ask who owns it. The default owner is the host app's composition root.
-- Record each junction once, in the map's Junctions section.
+- Record each junction once, in the map's Junctions section, with a one-line reason. `/gyos:init`
+  writes its ADR.
 
 **8. Stop and hand over.**
 
@@ -137,22 +163,24 @@ Stop when:
 - the remaining open questions are minor.
 
 Then:
-- write the glossaries;
 - summarize: the contexts with their classification, the junctions, the number of open questions,
   and the files written;
 - name the next step: `/gyos:init`, which picks up from here, or more exploration.
 
 ## What you write
 
-| File | Template | Notes |
-| --- | --- | --- |
-| `docs/product-brief.md` | `${CLAUDE_PLUGIN_ROOT}/templates/docs/product-brief.md` | Written at checkpoint A, updated after |
-| `docs/context-map.md` | `${CLAUDE_PLUGIN_ROOT}/templates/docs/context-map.md` | One entry per context with the Bounded Context Canvas fields, the relationships, the junctions |
-| `.claude/skills/<context>/glossary.md` | The glossary section of `${CLAUDE_PLUGIN_ROOT}/standards/domain-skill.md` | Written at step 8. This is the glossary's final home; `/gyos:init` builds the rest of the skill around it |
+Two files, and nothing else:
 
-- **Context names are kebab-case,** and never one of the reserved names listed in
-  `${CLAUDE_PLUGIN_ROOT}/standards/domain-skill.md`.
-- **The examples you collect stay in the context map,** under each context's Examples, until
-  `/gyos:init` turns them into `.feature` files.
-- **Every file you write starts with a comment** naming GYOS and the date, and says it is a draft
-  model, not a specification.
+| File | Template | When |
+| --- | --- | --- |
+| `docs/product-brief.md` | `${CLAUDE_PLUGIN_ROOT}/templates/docs/product-brief.md` | At checkpoint A; updated after |
+| `docs/context-map.md` | `${CLAUDE_PLUGIN_ROOT}/templates/docs/context-map.md` | At checkpoint A; each context's entry updated as you explore it |
+
+- **Each context's draft glossary and examples live in its context-map entry.** `/gyos:init` moves
+  them into the context's skill and module, and replaces them in the map with links:
+  - the glossary becomes the skill's `glossary.md`;
+  - the examples become `.feature` files with the BDD + TDD style, or promises in the skill's
+    `scenarios.md` otherwise.
+- **Every file you write starts with the GYOS header,** as in the templates. It carries the
+  version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and the date, and says the file
+  is a draft model, not a specification.

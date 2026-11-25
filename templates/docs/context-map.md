@@ -1,4 +1,4 @@
-<!-- Written by GYOS /gyos:discover on <date>. A draft model, not a specification. -->
+<!-- Written by GYOS <version> /gyos:discover on <date>. A draft model, not a specification. -->
 
 # Context map: <product>
 
@@ -13,6 +13,8 @@ flowchart LR
 
 ## Contexts
 
+A field the interview didn't cover holds `—` or an open question, never a filler.
+
 ### <context-name>
 
 - **Purpose:** <two sentences, business language only>
@@ -22,13 +24,20 @@ flowchart LR
 - **Domain roles:** <for example: execution, analysis, gateway>
 - **Inbound:** <commands, queries and events it receives, and from whom>
 - **Outbound:** <commands, queries and events it sends, and to whom>
-- **Ubiquitous language:** <the key terms; the full glossary is `.claude/skills/<context-name>/glossary.md`>
+- **Glossary (draft):** `/gyos:init` moves it into the context's skill, adds the code names, and
+  replaces it here with a link.
+
+  | Term (business language) | Meaning here | Banned synonyms |
+  | --- | --- | --- |
+  | <term> | <…> | <…> |
+
 - **Business decisions:**
   - <a rule or policy, confirmed by the user>
 - **Invariants:**
   - <what must never happen, and the trap it avoids>
 - **Examples:**
-  - <Given … When … Then …, with real values; `/gyos:init` turns these into .feature files>
+  - <Given … When … Then …, with real values. `/gyos:init` turns these into .feature files
+    (BDD + TDD) or promises in the skill's scenarios.md>
 - **Assumptions:**
   - <inferred | speculative>: <…>
 - **Verification metrics:** <how you'd know this context is doing its job>
@@ -45,9 +54,9 @@ flowchart LR
 
 Rules that span two contexts. Each belongs to neither, and its owner is settled once.
 
-| Junction | Contexts | Owner | Reasons |
-| --- | --- | --- | --- |
-| <"when X completes in A, do Y in B"> | <A, B> | <the host's composition root, or …> | <link to the ADR, once written> |
+| Junction | Contexts | Owner | Reason | ADR |
+| --- | --- | --- | --- | --- |
+| <"when X completes in A, do Y in B"> | <A, B> | <the host's composition root, or …> | <one line> | <written by `/gyos:init`> |
 
 ## Open questions across contexts
 

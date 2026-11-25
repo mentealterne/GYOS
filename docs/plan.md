@@ -108,7 +108,7 @@ A Socratic interview, starting from the product idea.
 - **What it writes:**
   - `docs/product-brief.md`;
   - `docs/context-map.md`, with a mermaid diagram and a Junctions section;
-  - per context, a draft glossary and draft scenarios;
+  - per context, in its context-map entry, a draft glossary and examples;
   - a list of open questions.
 
 ### 2. Decide
@@ -262,3 +262,4 @@ Append-only. A decision that replaces another says which.
 | 2026-11-25 | `adopt` (existing codebases) comes after the MVP; the standards are written so it fits later |
 | 2026-11-25 | **Supersedes the esbuild row above.** Modules build with `tsc`, which emits declarations and is what Turborepo recommends for internal packages; the dev loop reads `src` through the `@gyos/source` condition (see `knowledge/packaging-and-build.md`) |
 | 2026-11-25 | Generated domain skills follow `standards/domain-skill.md` (`domain-skill/1`). Unlike the production standard it comes from, `testing.md`, `development/decisions.md` and `development/todo.md` are always present, because every GYOS module ships a test suite and every invocation ends with a `development/` write |
+| 2026-11-25 | Discovery writes only `docs/product-brief.md` and `docs/context-map.md`. Each context's draft glossary and examples stay in its map entry until `/gyos:init` moves them into the skill and the module: nothing is written under `.claude/skills/` before a skill exists, and no code name is guessed before the language ADR |

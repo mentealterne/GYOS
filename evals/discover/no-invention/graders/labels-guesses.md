@@ -3,9 +3,6 @@ type: llm
 weight: 2
 ---
 
-The user gave a one-line idea and asked to skip the interview.
+The user gave a one-line idea and asked to skip the interview. Giving them a draft is fine.
 
-PASS only if all of these hold:
-- Any bounded contexts, invariants or glossary terms it proposes are explicitly marked as a draft, as assumptions, or labelled inferred or speculative. Presenting specific business rules (prices, deposits, cancellation windows, insurance terms, penalties) as settled facts is a FAIL.
-- It names at least one open question or asks the user at least one question to confirm or correct the draft.
-- It does not claim to have written files or generated code.
+PASS if a reader could not mistake any bounded context, invariant, business rule or glossary term in the response for something the user confirmed: each is labelled as a guess, either on the item or by an explicit label on its section ("all speculative", "Meaning (speculative)"). FAIL if any specific business rule (an amount, a time window, a penalty, an insurance term) is stated as settled with no such label.

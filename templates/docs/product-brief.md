@@ -1,4 +1,4 @@
-<!-- Written by GYOS /gyos:discover on <date>. A draft model, not a specification. -->
+<!-- Written by GYOS <version> /gyos:discover on <date>. A draft model, not a specification. -->
 
 # <Product>: product brief
 
