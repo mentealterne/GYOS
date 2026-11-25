@@ -108,7 +108,7 @@ A Socratic interview, starting from the product idea.
 - **What it writes:**
   - `docs/product-brief.md`;
   - `docs/context-map.md`, with a mermaid diagram and a Junctions section;
-  - per context, a draft glossary and draft scenarios;
+  - per context, in its context-map entry, a draft glossary and examples;
   - a list of open questions.
 
 ### 2. Decide
@@ -176,13 +176,16 @@ my-product/
   docs/
     product-brief.md
     context-map.md          contexts, relationships, junctions
-    decisions/              why: dated ADRs, append-only
+    decisions/              why: dated ADRs, append-only; README.md holds the format
+    standards/              module.md and domain-skill.md, copied from GYOS
   apps/
     api/                    Express host: composes the modules, owns HTTP and the junctions
     web/                    React / Svelte / Vue
   modules/
     billing/                @module/billing: one bounded context, one Postgres schema
     scheduling/
+  tooling/
+    architecture/           tests that span modules: dependencies, published views, migration order
   .claude/skills/
     billing/                the domain skill for modules/billing
     scheduling/
@@ -253,7 +256,10 @@ Append-only. A decision that replaces another says which.
 | 2026-11-25 | Modular monolith only: one deployable, one Postgres schema per module. No microservices option |
 | 2026-11-25 | Modules follow ports and adapters, with dependencies injected through a factory (see `standards/module.md`) |
 | 2026-11-25 | Fixed defaults, all replaceable. Drizzle is the ORM, Express the host app |
-| 2026-11-25 | Modules are ESM packages that ship a build made with `tsc`, as Turborepo recommends for internal packages; the dev loop reads `src` through the `@gyos/source` condition |
+| 2026-11-25 | Modules are ESM packages that ship a build (`build.ts`, esbuild) |
 | 2026-11-25 | The logger is a choice made at setup. Modules declare a logger port, and the host injects the logger |
 | 2026-11-25 | The interview runs in the user's language. Docs are written in English. The glossary keeps the original business term next to the name used in code |
 | 2026-11-25 | `adopt` (existing codebases) comes after the MVP; the standards are written so it fits later |
+| 2026-11-25 | **Supersedes the esbuild row above.** Modules build with `tsc`, which emits declarations and is what Turborepo recommends for internal packages; the dev loop reads `src` through the `@gyos/source` condition (see `knowledge/packaging-and-build.md`) |
+| 2026-11-25 | Generated domain skills follow `standards/domain-skill.md` (`domain-skill/1`). Unlike the production standard it comes from, `testing.md`, `development/decisions.md` and `development/todo.md` are always present, because every GYOS module ships a test suite and every invocation ends with a `development/` write |
+| 2026-11-25 | Discovery writes only `docs/product-brief.md` and `docs/context-map.md`. Each context's draft glossary and examples stay in its map entry until `/gyos:init` moves them into the skill and the module: nothing is written under `.claude/skills/` before a skill exists, and no code name is guessed before the language ADR |

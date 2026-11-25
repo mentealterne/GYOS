@@ -1,0 +1,14 @@
+{
+  "name": "gyos",
+  "description": "GYOS: Knowledge-Driven Programming for Claude Code.",
+  "owner": {
+    "name": "Alfredo Guida"
+  },
+  "plugins": [
+    {
+      "name": "gyos",
+      "source": "./",
+      "description": "Knowledge-Driven Programming for Claude Code: from a product idea to a modular monolith with one domain skill per bounded context."
+    }
+  ]
+}

@@ -63,18 +63,21 @@ archive nobody reads.
 
 ## The GYOS format
 
-The format is a synthesis of the sources above. There are two homes for decisions, and one entry
-shape for both.
+The format is a synthesis of the sources above. There are two homes for decisions, one entry
+shape for both, and an id that says which home an entry lives in.
 
-| Where | Holds |
-| --- | --- |
-| `docs/decisions/NNNN-<title>.md` | Project-wide decisions: the stack, the defaults, the shape of modules, junction owners |
-| `.claude/skills/<context>/development/decisions.md` | One context's decisions, as an append-only log. An entry that had real alternatives gets its own file under `docs/decisions/` and the log links to it |
+| Where | Holds | Ids |
+| --- | --- | --- |
+| `docs/decisions/NNNN-<title>.md` | Project-wide decisions: the stack, the defaults, the testing style, the language of code, junctions | `ADR-0007`: four digits, never reused |
+| `.claude/skills/<context>/development/decisions.md` | One context's decisions, as an append-only log under an Active table | `billing-D3`: the context, `D`, a number never reused |
+
+A context entry that weighed real alternatives gets its own ADR in `docs/decisions/`. The context
+log then holds only a row in its Active table that links to it.
 
 ```markdown
-## 0007 — Emails are unique regardless of case (2026-11-25)
+### billing-D3 — Emails are unique regardless of case (2026-11-25)
 
-Status: accepted · supersedes: 0003 · superseded by: —
+Status: accepted · supersedes: billing-D1 · superseded by: —
 
 In the context of registration, facing duplicate accounts, we decided for case-insensitive
 uniqueness (and against exact matching), to achieve one identity per person, accepting a
@@ -83,16 +86,34 @@ migration of the existing rows.
 Context: <the forces, described neutrally>
 Options considered: <A, B: one line of pros and cons each>
 Consequences: <good, bad, neutral>
-Confirmation: scenario "Registering twice with different casing is refused"; invariant M7
+Confirmation: scenario: "Registering twice with different casing is refused"; invariant: C3
 Confidence: medium. Revisit when: <the change that would reopen it>
 ```
 
-**Confirmation is what keeps a decision true.** It ties the decision to a scenario, a test or an
-invariant, so that code drifting away from the decision fails a check instead of going unnoticed.
-`/gyos:doctor` checks that every Confirmation names something that exists.
+**The minimum.** An ADR carries every line above. A context log entry needs at least the heading,
+the status line, the Y-statement and Confirmation; the rest when it has something to say.
+
+**Invariant ids.** `C1`, `C2`, … are a context's own invariants, listed in its skill's
+`architecture.md`. From outside the context they are written `billing/C3`. `M1`–`M12` are the
+module standard's. A C-number is never reused or renumbered: a retired invariant keeps its number,
+marked retired, so that no Confirmation silently starts pointing at a different rule.
+
+**Confirmation is what keeps a decision true.** It ties the decision to something a machine can
+find, so that code drifting away from the decision fails a check instead of going unnoticed. The
+syntax, separated by `;`:
+
+| Form | Matches |
+| --- | --- |
+| `scenario: "<name>"` | A `Scenario:`, `Scenario Outline:` or `Example:` line with that name in the context's `.feature` files |
+| `test: <path> "<name>"` | A test with that name in that file |
+| `invariant: C<n>`, `invariant: <context>/C<n>`, `invariant: M<n>` | An invariant in the context's `architecture.md`, another context's, or the module standard |
+
+`/gyos:doctor` checks that every Confirmation resolves.
 
 **An entry is never edited after acceptance.** A change of mind is a new entry that supersedes the
-old one, and the old one gets its "superseded by" filled in. That is the only edit allowed.
+old one. Exactly two edits are allowed afterwards:
+- filling in the old entry's "superseded by";
+- removing the old entry's row from the Active table.
 
 ---
 

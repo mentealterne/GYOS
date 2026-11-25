@@ -136,7 +136,7 @@ Whatever GYOS ships for events has to make the same distinction.
   (Grzybek, Integration styles)
 - **Enforce it in the database too, not only in code.** Jovanović recommends:
   - a Postgres role per module, with privileges only on its own schema;
-  - a migration history per module, inside its schema;
+  - a migration history per module;
   - cross-module screens served from a read model fed by events, or from a read-only view granted
     to a role.
 
@@ -149,8 +149,11 @@ Whatever GYOS ships for events has to make the same distinction.
   ([Schema vs database per module](https://milanjovanovic.tech/blog/schema-per-module-vs-database-per-module))
 
 **GYOS's position.**
-- **On by default:** a schema per module, a migration history inside it, no foreign keys out of
-  it, and published views for lists that span modules.
+- **On by default:** a schema per module, a migration history per module, no foreign keys out of
+  it, and published views for lists that span modules. The history is a table per module in a
+  shared `drizzle` schema, not inside the module's schema: Drizzle's migrator creates its
+  bookkeeping schema before the first migration creates the module's, so the two can't be the
+  same (see `data-and-migrations.md`).
 - **Optional hardening, off by default:** one Postgres role per module. Roles also mean one
   connection per module. The production identity module behind the standard postponed roles and
   relied on tests and a lint rule. GYOS does the same, and records the choice in an ADR the user
@@ -173,7 +176,8 @@ Brown says the same: "try to use the compiler to enforce boundaries".
   `bundler`.
 - **tsconfig `paths` bypass `exports` entirely**
   ([TS modules reference](https://www.typescriptlang.org/docs/handbook/modules/reference.html)).
-  GYOS allows `paths` only for a module's own `src/`, never to reach another package.
+  GYOS uses no `paths` at all: imports inside a module are relative, and Node's type stripping
+  ignores `paths` anyway (see `packaging-and-build.md`).
 - pnpm doesn't hoist undeclared dependencies by default, so importing a module that isn't listed
   in `package.json` fails. Shopify learned that the real proof of isolation was running a
   package's tests with only its declared dependencies loaded; static analysis alone missed
