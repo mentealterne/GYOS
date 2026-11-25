@@ -207,7 +207,8 @@ _Trap:_ a casual cross-schema join today is a blocker the day the boundary moves
 **M8. The module migrates its own schema, expand-only.**
 `ready()` runs the module's migrations once per module instance, which M1 makes once per process.
 The memo lives in the factory's closure, not at module scope (M3). Runs in flight are shared, and
-a failed run is forgotten so that the next call retries it. Every host awaits `ready()` for every
+a rejected run is forgotten, whatever rejected it (the "ready" log line included), so that the
+next call retries it. Every host awaits `ready()` for every
 module before it serves a request or runs a job, and may await them all at once: migrations of
 all modules are serialised by one advisory lock (see Data).
 

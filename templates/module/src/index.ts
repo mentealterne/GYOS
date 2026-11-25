@@ -29,15 +29,16 @@ export function createSampleModule(input: SampleModuleConfig): SampleModule {
 
   let migrated: Promise<void> | undefined;
   const ready = (): Promise<void> => {
+    // The catch comes last, so that any rejection, the logger's included, is forgotten: a
+    // memoised rejection would fail every later call without retrying.
     migrated ??= migrateSample(config.db, config.migrationsFolder, {
       lockTimeoutMs: config.migrationLockTimeoutMs,
-    }).then(
-      () => logger.info("ready"),
-      (error: unknown) => {
+    })
+      .then(() => logger.info("ready"))
+      .catch((error: unknown) => {
         migrated = undefined;
         throw error;
-      },
-    );
+      });
     return migrated;
   };
 
