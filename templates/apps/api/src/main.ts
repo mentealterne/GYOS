@@ -1,5 +1,6 @@
 // The composition root (standards/module.md, M1; standards/host.md). In order:
-// configuration → logger → pool → every module, once → every module ready → listen.
+// configuration and the tenant source → logger → pool → every module, once → every module ready
+// → listen.
 // SIGTERM or SIGINT stops it gracefully: stop taking requests, let those in flight finish, close
 // the server, end the pool, flush the logger. A second signal kills the process.
 //
@@ -11,11 +12,14 @@ import { ConfigError, loadConfig } from "./config.ts";
 import { createApp } from "./http/app.ts";
 import { createRoutes } from "./http/routes/index.ts";
 import { close, listen, portOf } from "./http/server.ts";
+import { checkTenantSource } from "./http/tenant.ts";
 import { createLogger } from "./logger.ts";
 import { buildModules, modulesReady } from "./modules.ts";
 
 async function main(): Promise<void> {
   const config = loadConfig();
+  // The tenant header is a development placeholder: a production host refuses to start with it.
+  checkTenantSource(config);
   const { logger, flush } = createLogger({
     level: config.logLevel,
     pretty: config.environment === "development",

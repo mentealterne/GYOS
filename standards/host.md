@@ -4,8 +4,8 @@ The rules the host app keeps: `apps/api`, the one deployable of a GYOS product, 
 modules and owns HTTP. The modules follow [`module.md`](module.md); this file covers what sits
 around them. The template that implements it is `templates/apps/api`, and
 `scripts/verify-templates.ts` proves it: it scaffolds the host with two modules, runs its tests,
-starts it from source and from the build, sends it HTTP requests and stops it with `SIGTERM`, in
-CI too. A statement here marked **verified** was run that way.
+starts it from source and from the build (with `NODE_ENV=test`: a production host refuses the
+tenant placeholder, H6), sends it HTTP requests and stops it with `SIGTERM`, in CI too. A statement here marked **verified** was run that way.
 
 Versions were checked on 2026-11-25: Express 5.3, pino 10.4, Zod 4.6.
 
@@ -29,7 +29,7 @@ apps/api/
         ├── app.ts               createApp: probes, JSON body, routes, error middleware
         ├── errors.ts            how an error becomes a status
         ├── server.ts            listen, and a graceful close
-        ├── tenant.ts            where the tenant of a request comes from
+        ├── tenant.ts            where the tenant of a request comes from: a placeholder header
         └── routes/
             ├── index.ts         mounts each module's routes at /<module>
             └── <module>.ts      one per module: thin routes, and the module's error map
@@ -39,9 +39,9 @@ apps/api/
 
 ## Rules
 
-**H1. `main.ts` is the composition root.** In this order: configuration, logger, one `pg` pool,
-every module (once, in `modules.ts`), every module's `ready()`, then listen. Nothing else in the
-host builds a module, a pool or a logger. A worker or a script that runs module code is a host
+**H1. `main.ts` is the composition root.** In this order: configuration (and the tenant source,
+H6), logger, one `pg` pool, every module (once, in `modules.ts`), every module's `ready()`, then
+listen. Nothing else in the host builds a module, a pool or a logger. A worker or a script that runs module code is a host
 too, and follows the same order.
 
 **H2. Junctions live in `modules.ts`.** A rule that spans two modules belongs to neither. The
@@ -65,6 +65,7 @@ test fails on any other read, however it is spelled.
 | `LOG_LEVEL` | `info` |
 | `DATABASE_POOL_MAX` | `10` |
 | `SHUTDOWN_TIMEOUT_MS` | `10000` |
+| `TENANT_FROM_HEADER` | `true`, except in production: the tenant placeholder (H6). `true` or `false` |
 
 **H4. One logger, built once, adapted to the modules' port.** `logger.ts` builds pino and adapts
 it to the port every module declares (`error` takes an `Error` too, `child` keeps bindings). The
@@ -86,6 +87,21 @@ no validation: the module parses its own input. A route file per module, `routes
 mounted at `/<module>`. The tenant comes from `tenant.ts` alone: a header until the product has
 authentication, then the session. A use case that needs two modules is a junction (H2) or an
 operation of one module, never a route that calls two.
+- **The `x-tenant-id` header is not authentication.** Any caller can name any tenant, and read or
+  write its data. It is a development placeholder, so the routes can be called before the product
+  has authentication: `TENANT_FROM_HEADER` turns it on, by default everywhere but production. A
+  host whose `NODE_ENV` is `production` refuses to start while `tenant.ts` is the placeholder, and
+  says to replace it with authentication; so does a host with `TENANT_FROM_HEADER=false`, which
+  has no tenant source left. **Verified** on every run: the built host exits with 1 and that
+  message under `NODE_ENV=production`.
+- The header is checked before any module is called: missing or empty, it is refused with 400
+  `missing-tenant`; longer than 128 characters, or holding anything but letters, digits, `.`, `_`
+  and `-`, with 400 `invalid-tenant`. The module validates the id again.
+- GYOS's doctor (`scripts/gyos-doctor.ts`) warns, without failing, while `tenant.ts` still reads
+  the tenant from the header.
+- Once the product authenticates its callers, `tenantOf` derives the tenant from the session, never
+  from anything the client sends, and `checkTenantSource` checks what the authentication needs, or
+  goes.
 
 **H7. Errors map in one place, by kind** (`http/errors.ts`):
 
@@ -93,7 +109,7 @@ operation of one module, never a route that calls two.
 | --- | --- | --- |
 | Invalid input: the module's `is<Name>InputError` says so | 400, with `issues` | `invalid-input` |
 | A refusal: the module's error class, by its `code` | 404, 409 or 422, from the route file's map | the module's code |
-| The host's own refusal (`HttpError`), or the JSON parser's | its 4xx | `missing-tenant`, `invalid-json`, … |
+| The host's own refusal (`HttpError`), or the JSON parser's | its 4xx | `missing-tenant`, `invalid-tenant`, `invalid-json`, … |
 | No route | 404 | `route-not-found` |
 | Anything else: a bug | 500, with an `id` | `internal` |
 
@@ -152,7 +168,8 @@ markers are missing or doubled, and a second run changes nothing (verified).
   start by `docker/postgres/create-test-database.sh`, with a healthcheck. The script was run against
   a local Postgres 16; the compose file itself is **not verified** (`docker compose config` parses
   it).
-- `.env.example`: `DATABASE_URL`, `TEST_DATABASE_URL`, `PORT`, `LOG_LEVEL`, `NODE_ENV`. `pnpm dev`
+- `.env.example`: `DATABASE_URL`, `TEST_DATABASE_URL`, `PORT`, `LOG_LEVEL`, `NODE_ENV`, and
+  `TENANT_FROM_HEADER` commented out, with what it is. `pnpm dev`
   reads `.env`; other commands read the shell's environment.
 - `.github/workflows/ci.yml`: install, typecheck, build, the unit tests, the scenarios, the
   integration tests on a Postgres service, then `node scripts/gyos-doctor.ts` when that file

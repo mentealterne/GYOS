@@ -288,7 +288,8 @@ function smokeChecks(): Check[] {
 }
 
 /**
- * Starts the host as a deploy would (port chosen by the system, JSON logs), waits for its
+ * Starts the host as a deploy would (port chosen by the system, JSON logs), but with NODE_ENV=test:
+ * a production host refuses the tenant header, the placeholder the requests use. Waits for its
  * "listening" line, makes the requests in smokeChecks(), then stops it with SIGTERM, and expects
  * it to log "stopped" and exit with 0.
  */
@@ -297,7 +298,7 @@ async function runHost(step: string, args: string[], env: NodeJS.ProcessEnv): Pr
   const started = performance.now();
   const child = spawn(process.execPath, args, {
     cwd: host,
-    env: { ...baseEnv, ...env, NODE_ENV: "production", HOST: "127.0.0.1", PORT: "0", LOG_LEVEL: "info" },
+    env: { ...baseEnv, ...env, NODE_ENV: "test", HOST: "127.0.0.1", PORT: "0", LOG_LEVEL: "info" },
     stdio: ["ignore", "pipe", "inherit"],
   });
   const lines: Record<string, unknown>[] = [];
@@ -417,6 +418,15 @@ async function verify(): Promise<void> {
   if (!run("consumer: from source", process.execPath, ["--conditions=@gyos/source", "verify/consumer.ts"], { cwd: host })) {
     return;
   }
+  // The tenant header is a development placeholder: a production host refuses to start with it,
+  // before it opens anything (the database URL here leads nowhere).
+  const production = { NODE_ENV: "production", DATABASE_URL: "postgres://nobody@127.0.0.1:9/nowhere", PORT: "0" };
+  const placeholderRefused = runExpectingFailure("host refuses production with the tenant placeholder", process.execPath, ["dist/main.js"], {
+    cwd: host,
+    env: production,
+    output: /x-tenant-id header[\s\S]*not authentication/,
+  });
+  if (!placeholderRefused) return;
   if (!run("db:check", "pnpm", ["--recursive", "--filter", "@module/*", "run", "db:check"])) return;
   if (!checkMigrationsMatchSchema()) return;
 

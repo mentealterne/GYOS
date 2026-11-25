@@ -25,6 +25,11 @@ export interface Config {
   logLevel: LogLevel;
   /** SHUTDOWN_TIMEOUT_MS: how long requests in flight get to finish at shutdown. Defaults to 10 000. */
   shutdownTimeoutMs: number;
+  /**
+   * TENANT_FROM_HEADER: whether the tenant may come from the x-tenant-id header, the development
+   * placeholder in http/tenant.ts. Not authentication. Defaults to true, except in production.
+   */
+  tenantFromHeader: boolean;
 }
 
 export class ConfigError extends Error {
@@ -55,6 +60,7 @@ const environmentSchema = z.object({
   DATABASE_POOL_MAX: wholeNumber("a whole number above 0", 1, 10_000).default(10),
   LOG_LEVEL: z.enum(LOG_LEVELS, { error: `expected one of ${LOG_LEVELS.join(", ")}` }).default("info"),
   SHUTDOWN_TIMEOUT_MS: wholeNumber("a whole number of milliseconds above 0", 1, 3_600_000).default(10_000),
+  TENANT_FROM_HEADER: z.enum(["true", "false"], { error: "expected true or false" }).optional(),
 });
 
 /**
@@ -76,5 +82,7 @@ export function loadConfig(env: Record<string, string | undefined> = process.env
     databasePoolMax: values.DATABASE_POOL_MAX,
     logLevel: values.LOG_LEVEL,
     shutdownTimeoutMs: values.SHUTDOWN_TIMEOUT_MS,
+    tenantFromHeader:
+      values.TENANT_FROM_HEADER === undefined ? values.NODE_ENV !== "production" : values.TENANT_FROM_HEADER === "true",
   };
 }
