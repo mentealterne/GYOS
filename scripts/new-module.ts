@@ -60,6 +60,18 @@ const NAME_PATTERN = /^[a-z][a-z0-9]*(?:-[a-z0-9]+)*$/;
 const MAX_NAME_LENGTH = 40;
 /** Schemas a module can't own: the default one, and the shared migration bookkeeping. */
 const RESERVED_NAMES = new Set(["public", "drizzle"]);
+/**
+ * Names a module can't take because its domain skill, .claude/skills/<name>, would collide with a
+ * command: GYOS's own skills, and Claude Code's built-in commands (the list in
+ * standards/domain-skill.md, "Where it lives"; scripts/gyos-doctor.ts checks the same list).
+ */
+const RESERVED_SKILL_NAMES = new Set([
+  "init", "discover", "context", "feature", "decide", "doctor", "adopt", "split", "merge", "upgrade",
+  "add-dir", "agents", "bug", "clear", "compact", "config", "cost", "exit", "export", "help",
+  "hooks", "login", "logout", "mcp", "memory", "model", "permissions", "plugin", "pr-comments",
+  "release-notes", "resume", "review", "rewind", "security-review", "status", "statusline",
+  "terminal-setup", "todos", "usage", "vim",
+]);
 /** Folders of src/ that an area can't be called. */
 const TAKEN_FOLDERS = new Set(["db", "config", "module-controllers", "tests"]);
 /**
@@ -97,6 +109,9 @@ function validateName(name: string): string[] {
   const problems = kebabProblems("name", name);
   if (RESERVED_NAMES.has(name)) {
     problems.push(`"${name}" is reserved: it names a schema no module can own`);
+  }
+  if (RESERVED_SKILL_NAMES.has(name)) {
+    problems.push(`"${name}" is reserved: its domain skill would collide with the /${name} command`);
   }
   return problems;
 }

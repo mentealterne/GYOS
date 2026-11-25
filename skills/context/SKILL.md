@@ -15,6 +15,9 @@ disable-model-invocation: true
 You add one bounded context to a product that `/gyos:init` already set up. It is the same work as
 init's, narrowed to one context.
 
+**The plugin's files are in `${CLAUDE_PLUGIN_ROOT}`.** The reference file below writes that root
+as `$P`. `$P` is not a shell variable: in every command, write out the full path above.
+
 ## Before anything
 
 - **`docs/context-map.md` and `AGENTS.md` must exist.** If they don't, the product wasn't set up
@@ -33,35 +36,42 @@ Invoke the `gyos:discover` skill in refine mode, on this context alone.
   to the existing contexts.
 - **Junctions:** every rule that spans the new context and an existing one is a junction. Name
   it, and settle its owner.
+- **The name:** kebab-case, and not one of the reserved names in
+  `docs/standards/domain-skill.md`, "Where it lives". Not the name of a skill already in
+  `.claude/skills/`, nor of a module already in `modules/`.
 
-**Checkpoint.** The user confirms the context's map entry.
+**Checkpoint.** The user confirms the context's map entry, name included.
 
 ## 2. Scaffold it
 
-**First, the plan:** the files and commands. Wait for the go.
+**First, the plan:** the files and the commands. Wait for the go.
 
 Then follow the "One context" and "After the contexts" parts of
 `${CLAUDE_PLUGIN_ROOT}/skills/init/references/scaffold.md`, for this context only:
 - the module (`new-module.ts`, with `--host apps/api`);
-- the skill, filled from the map;
+- the skill, filled from the map. Its Active table lists the project ADRs that bind it **today**:
+  the setup ADRs not superseded, and its junction ADRs;
 - the knowledge moved out of the map;
-- the junction ADRs;
+- the junction ADRs, through `/gyos:decide`'s questions;
 - a row in `AGENTS.md`;
 - a folder in the frontend, if it has a product surface.
 
-**The existing contexts change too:**
-- **A shared word:** add it to their glossaries' "Terms that mean something else elsewhere".
+**The existing contexts change too.** Apply each one's confront rule before editing:
+- **A shared word:** add it to their glossaries' "Terms that mean something else elsewhere", and
+  to the "Not this context" line of their `SKILL.md`.
 - **A junction:** add a row to their Active tables.
 - **A port implemented through the new module:** update their `architecture.md`.
 
-Apply each one's confront rule before editing.
-
 ## 3. Check
 
-Run `pnpm install`, `pnpm typecheck`, `pnpm test:unit` and, if it exists,
-`node scripts/gyos-doctor.ts`. Report what each printed. The new module is born with the
-template's example area, recorded as known debt in its skill, exactly as `/gyos:init` does. Its
-first real feature replaces it, with `/gyos:feature`.
+Run these, and report what each printed:
+- `pnpm install`;
+- `pnpm typecheck`;
+- `pnpm test:unit`, `pnpm test:scenarios`;
+- `node scripts/gyos-doctor.ts`.
+
+The new module is born with the template's example area, recorded as known debt in its skill,
+exactly as `/gyos:init` does. Its first real feature replaces it, with `/gyos:feature`.
 
 Summarize: the new context, its classification, its junctions, the files written, and the next
 step.

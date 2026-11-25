@@ -23,7 +23,9 @@ const END = "<!-- gyos-only:end -->";
 /** References that exist only inside the plugin, and so must not survive into a product. */
 const PLUGIN_ONLY = [
   /\bknowledge\/[\w-]+\.md/,
-  /\btemplates\/(?:module|workspace|skill|docs|apps|tooling-architecture)\b/,
+  /\btemplates\/[\w-]+/,
+  /\$\{CLAUDE_PLUGIN_ROOT\}\//,
+  /\bskills\/(?:init|discover|context|feature|decide|doctor)\b/,
   /\bscripts\/(?:verify-templates|new-module|copy-standards|template-names)(?:\.test)?\.ts/,
   /\bdocs\/plan\.md/,
   /gyos-only:/,

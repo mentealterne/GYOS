@@ -15,6 +15,8 @@ accepting {{the cost of the choice}}.
 {{The business's language, who reads the code, whether the glossary will be read by
 non-developers.}}
 
+<!-- gyos: if the business speaks English, the title is "Business terms in code: the business's own English terms", the Decision says the business terms are the code names, and Options considered is "none: there is nothing to translate". Remove this comment. -->
+
 ## Decision
 
 - **Glossaries:** every term lists its business form first and its code name second.

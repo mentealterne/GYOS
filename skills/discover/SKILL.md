@@ -179,8 +179,8 @@ Two files, and nothing else:
 - **Each context's draft glossary and examples live in its context-map entry.** `/gyos:init` moves
   them into the context's skill and module, and replaces them in the map with links:
   - the glossary becomes the skill's `glossary.md`;
-  - the examples become `.feature` files with the BDD + TDD style, or promises in the skill's
-    `scenarios.md` otherwise.
+  - the examples become promises not built yet in the skill's `scenarios.md`; `/gyos:feature`
+    turns each one into a `.feature` file (BDD + TDD) or a written promise as it builds it.
 - **Every file you write starts with the GYOS header,** as in the templates. It carries the
   version from `${CLAUDE_PLUGIN_ROOT}/.claude-plugin/plugin.json` and the date, and says the file
   is a draft model, not a specification.

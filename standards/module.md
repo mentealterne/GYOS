@@ -89,7 +89,7 @@ module. A new module starts with one area, named after its main concept. This st
 "area", not "subdomain", because GYOS's knowledge base uses "subdomain" in the strategic DDD
 sense (core, supporting, generic).
 
-**The scaffolder names the first area.** `new-module.ts <workspace> <name> --area
+**The scaffolder names the first area.** GYOS's scaffolder, which `/gyos:init` and `/gyos:context` run, takes `new-module.ts <workspace> <name> --area
 <plural> --entity <singular>` (kebab-case; `items` and `item` when left out) renames every form
 of the template's example area, in one pass with the module's name:
 
@@ -476,7 +476,7 @@ session, so `ready()` and `db:migrate` need a direct connection or a pooler in s
 pooler in transaction mode (PgBouncer's `pool_mode=transaction`, the pooled connection strings of
 Neon and Supabase) can hand each transaction to a different server connection, and doesn't
 support session-level advisory locks. The pool a host passes as `db` therefore reaches Postgres
-directly or through a session-mode pooler; the sources are in GYOS's knowledge base.
+directly or through a session-mode pooler; the sources are in the GYOS plugin's knowledge base.
 
 The `db:migrate` script, `scripts/migrate.ts` at the module's root, runs the same function by
 hand. It lives outside `src/` because it reads `DATABASE_URL`, and runs with Node's type

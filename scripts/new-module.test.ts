@@ -111,6 +111,15 @@ describe("new-module.ts --host", () => {
 });
 
 describe("new-module.ts: names it refuses", () => {
+  for (const name of ["context", "doctor", "review"]) {
+    it(`a module called ${name}: its skill would collide with the /${name} command`, () => {
+      const refused = scaffold(name);
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.output, new RegExp(`"${name}" is reserved: its domain skill would collide`));
+      assert.ok(!existsSync(join(workspace, "modules", name)));
+    });
+  }
+
   for (const name of ["eval", "arguments"]) {
     it(`a module called ${name}, in a host: it can't be a variable in strict mode`, () => {
       const refused = scaffold(name, "--host", HOST);

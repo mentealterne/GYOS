@@ -178,7 +178,7 @@ of the wiring, not by a run.
 
 ## Adding a module
 
-GYOS's scaffolder, `new-module.ts <workspace> <name> --host apps/api`, scaffolds the module and adds it to
+GYOS's scaffolder, which `/gyos:init` and `/gyos:context` run (`new-module.ts <workspace> <name> --host apps/api`), scaffolds the module and adds it to
 the host: the dependency in `package.json`, a line above each marker in `modules.ts`
 (`// gyos:modules:imports`, `:type`, `:build`, `:return`) and in `routes/index.ts`
 (`// gyos:routes:imports`, `:mount`), and `routes/<name>.ts` with its test, rendered from
