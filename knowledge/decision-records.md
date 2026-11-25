@@ -83,9 +83,12 @@ migration of the existing rows.
 Context: <the forces, described neutrally>
 Options considered: <A, B: one line of pros and cons each>
 Consequences: <good, bad, neutral>
-Confirmation: scenario "Registering twice with different casing is refused"; invariant M7
+Confirmation: scenario "Registering twice with different casing is refused"; invariant C3
 Confidence: medium. Revisit when: <the change that would reopen it>
 ```
+
+**Invariant ids.** `C1`, `C2`, … are a context's own invariants, listed in its skill's
+`architecture.md`. `M1`–`M12` are the module standard's. The prefixes keep the two from colliding.
 
 **Confirmation is what keeps a decision true.** It ties the decision to a scenario, a test or an
 invariant, so that code drifting away from the decision fails a check instead of going unnoticed.
