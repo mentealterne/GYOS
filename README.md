@@ -1,6 +1,6 @@
 # GYOS — Grow Your Own Software
 
-**Knowledge-Driven Development with Claude Code.**
+**Knowledge-Driven Programming with Claude Code.**
 
 GYOS is a set of Claude Code skills that takes you from a product idea to a
 well-architected codebase, without the slop.
@@ -23,6 +23,13 @@ sessions and ignore boundaries:
 The usual fix is more prompting. GYOS fixes it with structure. The knowledge an
 agent needs to work well in a domain is written down once, next to the code,
 and loaded automatically whenever the work touches that domain.
+
+There are two ways for code to be right. It can **work**: it runs and the tests
+pass, and when it doesn't, the machine tells you. And it can be **true**: it does
+what the business actually decided. Only the people who own the product can
+check that, and an agent that gets it wrong is confidently wrong. GYOS records
+those decisions where the agent reads them, and checks every new request
+against them before writing code.
 
 ## How it works
 
@@ -47,16 +54,21 @@ of guessing.
 
 ### 2. Shape
 
-Each bounded context becomes a **module**:
+Your product becomes a **modular monolith**: one deployable app, and one module
+per bounded context. Each module:
 
-- It has **one public entry point**. Callers never reach into its internals.
-- It is **layered inside**: entities → repositories → services → handlers.
-- It **owns its data**. Other modules can use that data only through the
-  module's entry point.
-- Its **dependencies point one way**, with no cycles.
+- has **one factory** that builds it from an injected configuration (database
+  pool, logger, clock, outside services), so nothing is a hidden singleton;
+- is **ports and adapters** inside: pure rules in the middle, use cases around
+  them, and every database query or outside call behind an interface;
+- **owns its own Postgres schema** and migrates it, and never joins another
+  module's tables;
+- **depends on other modules one way**, through their public entry points, with
+  no cycles.
 
 These rules aren't advice in a document. They are architecture tests that fail
-the build, so an agent or a person who breaks one finds out immediately.
+the build, so an agent or a person who breaks one finds out immediately. The
+full shape is in [`standards/module.md`](standards/module.md).
 
 ### 3. Embody
 
@@ -94,12 +106,16 @@ the last one stopped.
 
 ```
 your-product/
+  AGENTS.md               # the stack, the commands, the rules, the contexts
   docs/
-    context-map.md        # the bounded contexts and how they relate
+    context-map.md        # the bounded contexts, how they relate, the junctions
+    decisions/            # why things are the way they are, dated
+  apps/
+    api/                  # the one deployable: composes the modules
+    web/                  # React, Svelte or Vue
   modules/
-    billing/              # one bounded context, one module
+    billing/              # one bounded context, one module, one schema
     scheduling/
-  apps/                   # thin applications that compose the modules
   .claude/skills/
     billing/              # the domain skill for modules/billing
       SKILL.md
@@ -124,17 +140,25 @@ your-product/
 
 ## Vocabulary
 
-- **Knowledge-Driven Development (KDD).** A way of building software in which
-  the domain knowledge (language, rules, decisions) is made explicit before the
-  code and kept up to date alongside it, so that people and agents work from
-  the same source.
+- **Knowledge-Driven Programming (KDP).** The formalization of the decisions a
+  piece of software is made of. They are never final and they keep
+  accumulating, so that an agent builds knowing not only what the code does,
+  but why it was decided that way.
 - **Bounded context.** A part of the product with its own consistent language
-  and rules. "Invoice" means one thing inside billing, and it may mean
-  something else outside it.
+  and rules. "Session" can mean a booked meeting in a calendar context and a
+  person answering a questionnaire in an assessments context.
 - **Context map.** The list of bounded contexts and the relationships between
   them.
-- **Module.** The code of one bounded context, with one public entry point and
-  enforced boundaries.
+- **Junction.** A rule that spans two contexts ("when an assessment is
+  complete, book a meeting to hand over the results"). It belongs to neither
+  context, so it is named and given an owner exactly once.
+- **Modular monolith.** One deployable application split into modules with
+  enforced boundaries, instead of many services talking over the network.
+- **Module.** The code of one bounded context: one factory, ports and adapters
+  inside, its own database schema.
+- **Ports and adapters.** A port is an interface describing what the domain
+  needs from the outside (storage, email, a clock). An adapter is one way of
+  providing it. Swapping an adapter never touches the rules.
 - **Domain skill.** A Claude Code skill that carries the knowledge of one
   bounded context and activates when work touches it.
 
