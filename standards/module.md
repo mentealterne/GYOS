@@ -127,9 +127,11 @@ database handle. A host doesn't import anything below the published entry points
 | `logger.ts` | The logger port and the fallback | Nothing | Everything |
 | `migrations.ts` | The migrations folder | Node built-ins | Everything else |
 
-**Other modules (M10).** Wherever a row allows "the vocabulary", a module that conforms to another
-module's language may also import that module's vocabulary subpaths, as values: the domain
-applies its constants, a controller parses with its schemas, `db/` builds an enum from its union.
+**Other modules (M10).** A module that conforms to another module's language may import that
+module's vocabulary subpaths, types and values, wherever its own vocabulary is allowed at
+runtime: the vocabulary, controllers, the domain, services and `db/` (adapters take any package).
+The domain applies its constants, a controller parses with its schemas, `db/` builds an enum from
+its union. `ports.ts` and `config/` take other modules' entry points as types only.
 "As types" means `import type` or `export type … from`: with `verbatimModuleSyntax`,
 `import { type X }` keeps the import at runtime, so it counts as a value import. No part imports
 below another module's entry points, `index.ts` included.
