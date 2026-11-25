@@ -98,9 +98,9 @@ of the template's example area, in one pass with the module's name:
 | Prose: comments, test names, log lines, `.feature` files and their steps | "a treatment plan", "Treatment plans" |
 
 `scripts/template-names.ts` holds the rules and says how each place is recognised. A name that
-would clash with one the template already uses (`tenant`, `name`, `Error`, a reserved word) is
-refused, and so are two files that would land on one path, and the area `other-area`, which the
-layer tests make up as a second area.
+would clash with one the template already uses (`tenant`, `name`, `Error`, a reserved word,
+`eval` and `arguments` included) is refused, and so are two files that would land on one path,
+and the area `other-area`, which the layer tests make up as a second area.
 
 **The migration is renamed as text, not regenerated.** drizzle-kit is not installed when the
 scaffolder runs, and the module's name is already renamed in the same files. The renamed

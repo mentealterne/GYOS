@@ -279,15 +279,27 @@ export function renderPath(file: string, names: TemplateNames): string {
   return render(file, () => "path", names);
 }
 
-const RESERVED_WORDS =
-  "await break case catch class const continue debugger default delete do else enum export extends false finally for function if implements import in instanceof interface let new null package private protected public return static super switch this throw true try typeof var void while with yield";
+/**
+ * Names no identifier of a module can take: JavaScript's reserved words, strict mode's included,
+ * and eval and arguments, which strict mode (every ES module) refuses as a binding's name.
+ */
+export const RESERVED_WORDS: ReadonlySet<string> = new Set(
+  [
+    "await break case catch class const continue debugger default delete do else enum export extends",
+    "false finally for function if implements import in instanceof interface let new null package",
+    "private protected public return static super switch this throw true try typeof var void while",
+    "with yield eval arguments",
+  ]
+    .join(" ")
+    .split(" "),
+);
 
 /**
  * Every identifier in the code of the given template files that is not an area or entity token,
  * plus JavaScript's reserved words: the names an area or an entity must not turn into.
  */
 export function identifiersIn(files: readonly { file: string; path: string }[]): Set<string> {
-  const identifiers = new Set(RESERVED_WORDS.split(" "));
+  const identifiers = new Set(RESERVED_WORDS);
   for (const { file, path } of files) {
     if (!/\.[cm]?[jt]s$/.test(file)) continue;
     const text = readFileSync(path, "utf8");

@@ -39,6 +39,7 @@ import {
   identifiersIn,
   renderPath,
   renderText,
+  RESERVED_WORDS,
   TEMPLATE_AREA,
   TEMPLATE_ENTITY,
   type TemplateNames,
@@ -68,7 +69,7 @@ const LAYER_TESTS_AREA = "other-area";
  * src/modules.ts and src/http/routes/index.ts already use.
  */
 const RESERVED_IDENTIFIERS = new Set([
-  ..."break case catch class const continue debugger default delete do else enum export extends false finally for function if import in instanceof new null return super switch this throw true try typeof var void while with yield let static implements interface package private protected public await".split(" "),
+  ...RESERVED_WORDS,
   "pool",
   "logger",
   "clock",

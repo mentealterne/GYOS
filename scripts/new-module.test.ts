@@ -77,6 +77,25 @@ describe("new-module.ts --host", () => {
 });
 
 describe("new-module.ts: names it refuses", () => {
+  for (const name of ["eval", "arguments"]) {
+    it(`a module called ${name}, in a host: it can't be a variable in strict mode`, () => {
+      const refused = scaffold(name, "--host", HOST);
+      assert.notEqual(refused.status, 0);
+      assert.match(refused.output, new RegExp(`"${name}" is a reserved name there`));
+      assert.ok(!existsSync(join(workspace, "modules", name)));
+    });
+
+    it(`an area or an entity called ${name}`, () => {
+      const asEntity = scaffold("sales", "--area", `${name}-list`, "--entity", name);
+      assert.notEqual(asEntity.status, 0);
+      assert.match(asEntity.output, new RegExp(`--entity "${name}" would clash with a name the template already uses: ${name}\\b`));
+      const asArea = scaffold("sales", "--area", name, "--entity", `${name}-entry`);
+      assert.notEqual(asArea.status, 0);
+      assert.match(asArea.output, new RegExp(`--area "${name}" would clash with a name the template already uses: ${name}\\b`));
+      assert.ok(!existsSync(join(workspace, "modules", "sales")));
+    });
+  }
+
   it("the area the layer tests make up", () => {
     const refused = scaffold("sales", "--area", "other-area", "--entity", "other-thing");
     assert.notEqual(refused.status, 0);
