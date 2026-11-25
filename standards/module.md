@@ -56,7 +56,7 @@ modules/<name>/
 └── src/
     ├── index.ts            create<Name>Module(config): the module's factory
     ├── contracts.ts        types, ports a host implements, errors as types. No runtime code
-    ├── repositories.ts     builds every adapter on its connection
+    ├── repositories.ts     builds every adapter on its connection, and the transaction seam
     ├── migrations.ts       the migrations folder, resolved the same from src/ and dist/
     ├── module-controllers/ the operations hosts call: parse input, delegate
     │   └── index.ts        builds the use cases and controllers on a set of repositories
@@ -66,10 +66,11 @@ modules/<name>/
     │   ├── ports.ts        what the area needs from outside
     │   └── adapters/       how that is provided: the only code that does I/O
     ├── <vocabulary>.ts     published language: constants, unions, zod schemas. No I/O
-    ├── db/                 the schema (pgSchema + tables), the migration runner
+    ├── db/                 the schema (pgSchema + tables), the database type, the migration runner
     ├── config/             the configuration contract and its validation
     ├── logger.ts           the logger port and the fallback
     └── tests/
+        ├── contract/       what every set of repositories promises, run by both tiers below
         ├── unit/           no database: domain, services, controllers, architecture
         └── integration/    adapters against a real Postgres
 ```
@@ -446,6 +447,14 @@ The views are a **closed set**, and their columns are a contract:
 
 An architecture test fails on any view that is not in the set.
 
+**Transactions inside a module.** `repositories.ts` builds `transaction(work)` on
+`db.transaction((tx) => work(create<Name>Repositories(tx)))`: `work` gets every repository bound
+to one transaction, its writes commit when it resolves and none remains when it rejects, and a
+nested call is a savepoint. Adapters are built on `<Name>Database` (`src/db/database.ts`), which
+covers both the database and a transaction on it. A use case whose writes must land together
+receives `transaction` and writes only through the repositories it is given. The in-memory twin
+in `features/support/` rolls back the same way, and the contract suite checks that both do.
+
 **No transaction spans two modules.** A rule that has to change two modules is a junction. The
 host orchestrates it, through operations that are safe to retry.
 
@@ -613,10 +622,10 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
 
 | Tier | Where | Runs against | Proves |
 | --- | --- | --- | --- |
-| **Unit** | `src/tests/unit/` | In-memory ports, no database | Domain rules, use cases, controller parsing, config validation |
+| **Unit** | `src/tests/unit/` | In-memory ports, no database | Domain rules, use cases, controller parsing, config validation, the repositories' contract on the in-memory twin |
 | **Architecture** | `src/tests/unit/architecture/` | The source's imports | The layer rules above; contracts and ports hold types only; no `process.env`; the exports; the migrations folder resolves |
 | **Scenarios** | `features/` | The controllers, with the in-memory adapters from `features/support/` | The product promises, in the language of the people who use it |
-| **Integration** | `src/tests/integration/` | Adapters on a real, throwaway Postgres (`TEST_DATABASE_URL`) | Queries, mapping, the unique indexes, migrations (two pools at once included), the published views |
+| **Integration** | `src/tests/integration/` | Adapters on a real, throwaway Postgres (`TEST_DATABASE_URL`) | The repositories' contract, queries, mapping, the unique indexes, transactions, migrations (two pools at once included), the published views |
 
 - **Two Vitest configs.** `vitest.config.ts` includes only `src/tests/unit/**/*.test.ts`, so
   `test:unit` never needs a database; `vitest.config.integration.ts` includes only
@@ -631,7 +640,11 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
   `scripts/verify-templates.ts` runs it on a database called `postgres`.
 - **One set of in-memory adapters** in `features/support/` serves both the scenarios and the unit
   tests, so a phrase like "Giulia is an HR director" means the same thing everywhere. They keep
-  the same promises as the real adapters, unique indexes included.
+  the same promises as the real adapters, unique indexes and transactions included.
+- **One contract suite proves it.** `src/tests/contract/repositories.contract.ts` states what
+  every set of repositories promises. The unit tier runs it on the in-memory twin, the
+  integration tier on Postgres. A promise added to a port is added there, so the scenarios can't
+  pass on a twin that behaves differently from production.
 - **The architecture tests check themselves.** Next to every rule there is a synthetic import
   that breaks it, and the test asserts that the rule reports it. A check that cannot fail proves
   nothing.
@@ -653,7 +666,8 @@ OpenTelemetry JS SDK 3 needs ≥ 22.15.
 | --- | --- |
 | A rule (who may act, what is allowed) | `<area>/domain/`, with a unit test or a scenario |
 | A use case | `<area>/services/`, then an operation on its controller |
-| A query or a table | A method on the port in `ports.ts`, then the adapter; the table in `db/schema.ts` and a generated migration |
+| A query or a table | A method on the port in `ports.ts`, then the adapter, its in-memory twin and the promise in the contract suite; the table in `db/schema.ts` and a generated migration |
+| Writes that must land together | A use case that receives `transaction` from the repositories and writes only through the repositories it is given |
 | An outside system (email, payments, a queue) | A port in `ports.ts`, its adapter in `adapters/`, wired in `index.ts` |
 | Something the host must provide | A port in `ports.ts`, an optional field in the config, a `<Port>MissingError` |
 | A type consumers need | Its area, then re-exported from `contracts.ts` |

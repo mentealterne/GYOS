@@ -7,6 +7,8 @@ import type { Item, ItemRepository } from "../../src/items/ports.ts";
 export interface InMemoryItemRepository extends ItemRepository {
   /** Every stored item, for assertions. */
   all(): Item[];
+  /** Puts back what all() returned: how the in-memory transaction rolls back. */
+  restore(items: Item[]): void;
 }
 
 export function createInMemoryItemRepository(seed: Item[] = []): InMemoryItemRepository {
@@ -51,6 +53,11 @@ export function createInMemoryItemRepository(seed: Item[] = []): InMemoryItemRep
 
     all() {
       return [...rows.values()].map((item) => ({ ...item }));
+    },
+
+    restore(items) {
+      rows.clear();
+      for (const item of items) rows.set(item.id, { ...item });
     },
   };
 }

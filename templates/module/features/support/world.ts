@@ -1,16 +1,16 @@
-// A fresh World per scenario: in-memory adapters and the controllers wired on them, the same
-// wiring index.ts does with the Postgres adapters.
+// A fresh World per scenario: the in-memory repositories and the controllers wired on them, the
+// same wiring index.ts does with the Postgres ones.
 import { setWorldConstructor, World, type IWorldOptions } from "@cucumber/cucumber";
 import { createFallbackLogger } from "../../src/logger.ts";
 import {
   createSampleControllers,
   type SampleControllers,
 } from "../../src/module-controllers/index.ts";
-import { createInMemoryItemRepository, type InMemoryItemRepository } from "./in-memory-item-repository.ts";
+import { createInMemorySampleRepositories, type InMemorySampleRepositories } from "./in-memory-repositories.ts";
 
 export class SampleWorld extends World {
   now = new Date("2026-01-05T09:00:00.000Z");
-  readonly items: InMemoryItemRepository = createInMemoryItemRepository();
+  readonly repositories: InMemorySampleRepositories = createInMemorySampleRepositories();
   readonly controllers: SampleControllers;
   /** Tenants are named in scenarios ("Acme"); their ids are opaque strings. */
   readonly tenants = new Map<string, string>();
@@ -20,7 +20,7 @@ export class SampleWorld extends World {
   constructor(options: IWorldOptions) {
     super(options);
     this.controllers = createSampleControllers({
-      repositories: { items: this.items },
+      repositories: this.repositories,
       clock: () => this.tick(),
       logger: createFallbackLogger(),
     });

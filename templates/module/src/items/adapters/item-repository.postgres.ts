@@ -1,12 +1,12 @@
 // ItemRepository on Postgres, with Drizzle. Rows are mapped to domain types here, and nowhere else.
 import { and, asc, eq } from "drizzle-orm";
-import type { NodePgDatabase } from "drizzle-orm/node-postgres";
+import type { SampleDatabase } from "../../db/database.ts";
 import { items, type ItemRow } from "../../db/schema.ts";
 import type { Item, ItemRepository } from "../ports.ts";
 
 const UNIQUE_VIOLATION = "23505";
 
-export function createPostgresItemRepository(db: NodePgDatabase): ItemRepository {
+export function createPostgresItemRepository(db: SampleDatabase): ItemRepository {
   return {
     async listByTenant(tenantId) {
       const rows = await db
